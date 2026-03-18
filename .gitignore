@@ -1,0 +1,22 @@
+# Entorno
+.env
+.env.local
+.env.production
+
+# Dependencias
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Backend compilado
+dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
