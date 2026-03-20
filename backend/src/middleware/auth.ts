@@ -1,46 +1,21 @@
 import { Request, Response, NextFunction } from 'express'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_KEY!
-)
+import pool from '../db/client'
 
 export interface AuthRequest extends Request {
   usuario?: { id: string; email: string; rol: string }
 }
 
 export async function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token de autenticación requerido' })
-  }
-
-  const token = authHeader.split(' ')[1]
-
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Token requerido' })
   try {
-    const { data: { user }, error } = await supabase.auth.getUser(token)
-
-    if (error || !user) {
-      return res.status(401).json({ error: 'Token inválido o expirado' })
-    }
-
-    // Obtener perfil y rol
-    const { data: perfil } = await supabase
-      .from('perfiles')
-      .select('id, email, rol')
-      .eq('id', user.id)
-      .single()
-
-    req.usuario = {
-      id: user.id,
-      email: user.email!,
-      rol: perfil?.rol || 'consultor'
-    }
-
+    const payload = JSON.parse(Buffer.from(auth.replace('Bearer ', ''), 'base64').toString())
+    if (payload.exp < Date.now()) return res.status(401).json({ error: 'Token expirado' })
+    const result = await pool.query('SELECT id, email, rol FROM usuarios WHERE id = $1', [payload.id])
+    if (result.rows.length === 0) return res.status(401).json({ error: 'Usuario no encontrado' })
+    req.usuario = result.rows[0]
     next()
-  } catch (err) {
-    return res.status(401).json({ error: 'Error de autenticación' })
+  } catch {
+    return res.status(401).json({ error: 'Token inválido' })
   }
 }
