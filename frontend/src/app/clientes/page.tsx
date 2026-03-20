@@ -14,21 +14,20 @@ export default function ClientesPage() {
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
-  useEffect(() => { cargar() }, [])
-
-  async function cargar() {
-    const token = localStorage.getItem('token')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const token = window.localStorage.getItem('token')
     if (!token) { router.push('/auth/login'); return }
-    const res = await fetch(`${API}/clientes`, { headers: { Authorization: `Bearer ${token}` } })
-    const data = await res.json()
-    setClientes(data.data || [])
-    setLoading(false)
-  }
+    fetch(`${API}/clientes`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { setClientes(d.data || []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [])
 
   async function crear(e: React.FormEvent) {
     e.preventDefault()
     setGuardando(true)
-    const token = localStorage.getItem('token')
+    const token = window.localStorage.getItem('token')
     const res = await fetch(`${API}/clientes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
