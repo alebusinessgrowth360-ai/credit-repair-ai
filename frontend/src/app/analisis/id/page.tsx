@@ -346,3 +346,4 @@ export default function AnalisisPage() {
     </div>
   )
 }
+export const dynamic = 'force-dynamic'
