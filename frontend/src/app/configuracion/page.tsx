@@ -2,6 +2,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
+function getToken() {
+  if (typeof document === 'undefined') return null
+  const match = document.cookie.match(/token=([^;]+)/)
+  return match ? match[1] : localStorage.getItem('token')
+}
+
 export default function ConfiguracionPage() {
   const [apiKey, setApiKey] = useState('')
   const [modelo, setModelo] = useState('gpt-4o')
@@ -13,8 +19,7 @@ export default function ConfiguracionPage() {
   const API = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const t = window.localStorage.getItem('token')
+    const t = getToken()
     if (!t) { router.push('/auth/login'); return }
     fetch(API + '/ia/config', { headers: { Authorization: 'Bearer ' + t } })
       .then(r => r.json()).then(d => { if (d.data) setConfig(d.data) })
@@ -24,7 +29,7 @@ export default function ConfiguracionPage() {
   async function guardar(e) {
     e.preventDefault()
     setLoading(true); setError(''); setMensaje('')
-    const t = window.localStorage.getItem('token')
+    const t = getToken()
     if (!t) { router.push('/auth/login'); return }
     try {
       const res = await fetch(API + '/ia/config', {
@@ -42,7 +47,6 @@ export default function ConfiguracionPage() {
       const testData = await test.json()
       if (!test.ok) throw new Error(testData.error)
       setMensaje('Conexion exitosa. IA lista para usar.')
-      setConfig({ ...config, estado_conexion: 'activo' })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -54,9 +58,9 @@ export default function ConfiguracionPage() {
     <div style={{ minHeight:'100vh', background:'#0a0f1e', color:'#f1f5f9', fontFamily:'sans-serif', padding:'40px' }}>
       <button onClick={() => router.push('/dashboard')} style={{ background:'none', border:'none', color:'#6366f1', cursor:'pointer', marginBottom:'24px', fontSize:'14px' }}>Dashboard</button>
       <h1 style={{ fontSize:'24px', marginBottom:'8px' }}>Configuracion de IA</h1>
-      <p style={{ color:'#64748b', fontSize:'14px', marginBottom:'32px' }}>Conecta tu API Key de OpenAI para analizar reportes y generar cartas.</p>
+      <p style={{ color:'#64748b', fontSize:'14px', marginBottom:'32px' }}>Conecta tu API Key de OpenAI.</p>
       {config && (
-        <div style={{ background: config.estado_conexion === 'activo' ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', border: '1px solid ' + (config.estado_conexion === 'activo' ? '#22c55e' : '#ef4444'), borderRadius:'10px', padding:'12px 16px', marginBottom:'24px', fontSize:'13px' }}>
+        <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid #22c55e', borderRadius:'10px', padding:'12px 16px', marginBottom:'24px', fontSize:'13px' }}>
           Estado: {config.estado_conexion} - Modelo: {config.modelo}
         </div>
       )}
