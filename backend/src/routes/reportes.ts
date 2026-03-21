@@ -6,7 +6,7 @@ import path from 'path'
 import fs from 'fs'
 
 const router = Router()
-const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 20 * 1024 * 1024 } })
+const upload = multer({ dest: '/tmp/uploads/', limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: (_req: any, file: any, cb: any) => { cb(null, true) } })
 
 router.post('/upload', requireAuth, upload.single('pdf'), async (req: AuthRequest, res: Response) => {
   const usuarioId = req.usuario!.id
