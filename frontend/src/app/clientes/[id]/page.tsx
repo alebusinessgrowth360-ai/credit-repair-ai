@@ -59,7 +59,8 @@ export default function DetalleClientePage() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
-        setReportes([data.data, ...reportes])
+        const nuevosReportes = await fetch(API + '/reportes/cliente/' + id, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json())
+        setReportes(nuevosReportes.data || [data.data, ...reportes])
         setMensaje('Reporte subido correctamente. Ahora puedes analizarlo.')
         setArchivo(null)
       } catch (err) {
