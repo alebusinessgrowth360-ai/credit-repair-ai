@@ -1,8 +1,6 @@
 import { Router, Response } from 'express'
 import pool from '../db/client'
 import { requireAuth, AuthRequest } from '../middleware/auth'
-import fs from 'fs'
-import path from 'path'
 
 const router = Router()
 
@@ -16,15 +14,9 @@ router.post('/upload', requireAuth, async (req: AuthRequest, res: Response) => {
     if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
     const version = await pool.query('SELECT COUNT(*) FROM reportes_credito WHERE cliente_id = $1', [cliente_id])
     const numVersion = parseInt(version.rows[0].count) + 1
-    const uploadDir = '/tmp/uploads'
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-    const fileName = `${Date.now()}-${nombre_archivo || 'reporte.pdf'}`
-    const filePath = path.join(uploadDir, fileName)
-    const buffer = Buffer.from(pdf_base64, 'base64')
-    fs.writeFileSync(filePath, buffer)
     const result = await pool.query(
-      'INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte, version) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-      [cliente_id, nombre_archivo || 'reporte.pdf', filePath, fecha_reporte || new Date().toISOString().split('T')[0], tipo_reporte, numVersion]
+      'INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte, version, pdf_contenido) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, cliente_id, nombre_archivo, fecha_reporte, tipo_reporte, version, created_at',
+      [cliente_id, nombre_archivo || 'reporte.pdf', 'db', fecha_reporte || new Date().toISOString().split('T')[0], tipo_reporte, numVersion, pdf_base64]
     )
     res.status(201).json({ data: result.rows[0], error: null })
   } catch (err: any) {
@@ -37,7 +29,7 @@ router.get('/cliente/:cliente_id', requireAuth, async (req: AuthRequest, res: Re
   const { cliente_id } = req.params
   try {
     const result = await pool.query(
-      'SELECT r.* FROM reportes_credito r JOIN clientes c ON c.id = r.cliente_id WHERE r.cliente_id = $1 AND c.usuario_id = $2 ORDER BY r.created_at DESC',
+      'SELECT id, cliente_id, nombre_archivo, fecha_reporte, tipo_reporte, version, created_at FROM reportes_credito r JOIN clientes c ON c.id = r.cliente_id WHERE r.cliente_id = $1 AND c.usuario_id = $2 ORDER BY r.created_at DESC',
       [cliente_id, usuarioId]
     )
     res.json({ data: result.rows, error: null })
@@ -49,7 +41,7 @@ router.get('/cliente/:cliente_id', requireAuth, async (req: AuthRequest, res: Re
 router.get('/by-id/:reporte_id', requireAuth, async (req: AuthRequest, res: Response) => {
   const { reporte_id } = req.params
   try {
-    const result = await pool.query('SELECT * FROM reportes_credito WHERE id = $1', [reporte_id])
+    const result = await pool.query('SELECT id, cliente_id, nombre_archivo, tipo_reporte, version FROM reportes_credito WHERE id = $1', [reporte_id])
     if (result.rows.length === 0) return res.status(404).json({ error: 'Reporte no encontrado' })
     res.json({ data: result.rows[0], error: null })
   } catch (err: any) {
