@@ -97,6 +97,36 @@ export default function DetalleClientePage() {
     }
   }
 
+  async function borrarReporte(reporteId) {
+    if (!confirm('¿Seguro que quieres borrar este reporte? Se perderá el análisis también.')) return
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/reportes/' + reporteId, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!res.ok) throw new Error('Error al borrar')
+      cargarDatos(token)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function borrarCliente() {
+    if (!confirm('¿Seguro que quieres borrar este cliente? Se borrarán todos sus reportes y cartas.')) return
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/clientes/' + id, {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + token }
+      })
+      if (!res.ok) throw new Error('Error al borrar')
+      router.push('/clientes')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   if (!cliente) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0a0f1e', color:'#94a3b8', fontFamily:'sans-serif' }}>Cargando...</div>
 
   const fuentes = ['Experian','Equifax','TransUnion','IdentityIQ','SmartCredit','PrivacyGuard','MyScoreIQ','otro']
@@ -113,6 +143,10 @@ export default function DetalleClientePage() {
           <p style={{ color:'#64748b', fontSize:'13px', margin:0 }}>{cliente.email} · {cliente.telefono}</p>
         </div>
         <span style={{ marginLeft:'auto', fontSize:'12px', padding:'4px 12px', borderRadius:'20px', background:'rgba(34,197,94,0.15)', color:'#22c55e' }}>{cliente.estado_caso}</span>
+        <button onClick={borrarCliente}
+          style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
+          Borrar cliente
+        </button>
       </div>
 
       {cartaAbierta && (
@@ -164,6 +198,10 @@ export default function DetalleClientePage() {
                 <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
                   style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
                   {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
+                </button>
+                <button onClick={() => borrarReporte(r.id)}
+                  style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
+                  Borrar
                 </button>
               </div>
             </div>
