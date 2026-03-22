@@ -20,21 +20,26 @@ export default function DetalleClientePage() {
   const [archivo, setArchivo] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
+  const [cartaAbierta, setCartaAbierta] = useState(null)
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
-  useEffect(() => {
-    const token = getToken()
-    if (!token || !id) { router.push('/auth/login'); return }
+  function cargarDatos(token) {
     Promise.all([
       fetch(API + '/clientes/' + id, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
       fetch(API + '/reportes/cliente/' + id, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
       fetch(API + '/cartas?cliente_id=' + id, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json())
     ]).then(([c, r, ca]) => {
-      setCliente(c.data)
-      setReportes(r.data || [])
-      setCartas(ca.data || [])
-    }).catch(() => {})
+      if (c.data) setCliente(c.data)
+      setReportes(Array.isArray(r.data) ? r.data : [])
+      setCartas(Array.isArray(ca.data) ? ca.data : [])
+    }).catch(console.error)
+  }
+
+  useEffect(() => {
+    const token = getToken()
+    if (!token || !id) { router.push('/auth/login'); return }
+    cargarDatos(token)
   }, [id])
 
   async function subirReporte(e) {
@@ -59,8 +64,7 @@ export default function DetalleClientePage() {
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
-        const nuevosReportes = await fetch(API + '/reportes/cliente/' + id, { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json())
-        setReportes(nuevosReportes.data || [data.data, ...reportes])
+        cargarDatos(token)
         setMensaje('Reporte subido correctamente. Ahora puedes analizarlo.')
         setArchivo(null)
       } catch (err) {
@@ -110,6 +114,18 @@ export default function DetalleClientePage() {
         </div>
         <span style={{ marginLeft:'auto', fontSize:'12px', padding:'4px 12px', borderRadius:'20px', background:'rgba(34,197,94,0.15)', color:'#22c55e' }}>{cliente.estado_caso}</span>
       </div>
+
+      {cartaAbierta && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
+          <div style={{ background:'#1e293b', borderRadius:'16px', padding:'32px', maxWidth:'700px', width:'100%', maxHeight:'80vh', overflowY:'auto', position:'relative' }}>
+            <button onClick={() => setCartaAbierta(null)} style={{ position:'absolute', top:'16px', right:'16px', background:'none', border:'none', color:'#94a3b8', fontSize:'20px', cursor:'pointer' }}>✕</button>
+            <h2 style={{ fontSize:'16px', marginBottom:'16px' }}>{cartaAbierta.tipo_carta.replace(/_/g,' ')}</h2>
+            <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'16px' }}>{cartaAbierta.destinatario} · {cartaAbierta.estado}</p>
+            <pre style={{ fontSize:'13px', lineHeight:'1.6', whiteSpace:'pre-wrap', color:'#f1f5f9' }}>{cartaAbierta.contenido}</pre>
+          </div>
+        </div>
+      )}
+
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'24px' }}>
         <div>
           <h2 style={{ fontSize:'16px', marginBottom:'16px' }}>Subir reporte PDF</h2>
@@ -137,15 +153,15 @@ export default function DetalleClientePage() {
                 <div style={{ fontSize:'11px', color:'#64748b' }}>{r.nombre_archivo}</div>
               </div>
               <div style={{ display:'flex', gap:'8px' }}>
-  <button onClick={() => router.push('/analisis/' + r.id)}
-    style={{ padding:'6px 14px', background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.4)', borderRadius:'8px', color:'#4ade80', fontSize:'12px', cursor:'pointer' }}>
-    Ver análisis
-  </button>
-  <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
-    style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
-    {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
-  </button>
-</div>
+                <button onClick={() => router.push('/analisis/' + r.id)}
+                  style={{ padding:'6px 14px', background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.4)', borderRadius:'8px', color:'#4ade80', fontSize:'12px', cursor:'pointer' }}>
+                  Ver análisis
+                </button>
+                <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
+                  style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
+                  {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -154,9 +170,11 @@ export default function DetalleClientePage() {
           {cartas.length === 0 ? (
             <p style={{ color:'#64748b', fontSize:'13px' }}>Las cartas apareceran despues del analisis.</p>
           ) : cartas.map(c => (
-            <div key={c.id} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px' }}>
+            <div key={c.id} onClick={() => setCartaAbierta(c)}
+              style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px', cursor:'pointer' }}>
               <div style={{ fontSize:'13px', fontWeight:'bold' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
               <div style={{ fontSize:'11px', color:'#64748b' }}>{c.destinatario} · {c.estado}</div>
+              <div style={{ fontSize:'11px', color:'#6366f1', marginTop:'4px' }}>Click para ver →</div>
             </div>
           ))}
         </div>
