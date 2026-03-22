@@ -61,5 +61,17 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
     res.status(500).json({ error: err.message })
   }
 })
-
+router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const usuarioId = req.usuario!.id
+  const { id } = req.params
+  try {
+    await pool.query('DELETE FROM cartas WHERE cliente_id = $1', [id])
+    await pool.query('DELETE FROM analisis_reportes WHERE reporte_id IN (SELECT id FROM reportes_credito WHERE cliente_id = $1)', [id])
+    await pool.query('DELETE FROM reportes_credito WHERE cliente_id = $1', [id])
+    await pool.query('DELETE FROM clientes WHERE id = $1 AND usuario_id = $2', [id, usuarioId])
+    res.json({ data: { deleted: true }, error: null })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
 export default router
