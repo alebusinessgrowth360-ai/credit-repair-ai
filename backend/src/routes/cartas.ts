@@ -24,7 +24,7 @@ router.post('/generar', requireAuth, async (req: AuthRequest, res: Response) => 
     if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
     const c = cliente.rows[0]
     const openai = await getOpenAI(usuarioId)
-    const prompt = `Redacta una carta profesional de disputa de credito en English para:
+    const prompt = `Write a professional credit dispute letter in English for:
 Cliente: ${c.nombre_completo}
 Direccion: ${c.direccion || ''}, ${c.ciudad || ''}, ${c.estado || ''} ${c.zip || ''}
 Tipo de carta: ${tipo_carta}
@@ -32,11 +32,11 @@ Destinatario: ${destinatario}
 Error a disputar: ${JSON.stringify(error_detectado || {})}
 Ley aplicable: ${ley_aplicada || 'FCRA'}
 Fecha: ${new Date().toLocaleDateString('es-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-La carta debe ser formal, profesional, personalizada y lista para enviar. Incluye: fecha, destinatario, detalle del problema, solicitud formal de investigacion o correccion, referencia a la ley aplicable y cierre profesional con espacio para firma.`
+The letter must be formal, professional, personalized and ready to send. Incluye: fecha, destinatario, detalle del problema, solicitud formal de investigacion o correccion, referencia a la ley aplicable y cierre profesional con espacio para firma.`
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'Eres un experto en reparacion de credito. Redacta cartas de disputa profesionales en espanol.' },
+        { role: 'system', content: 'You are a credit repair expert. Write professional dispute letters in English.' },
         { role: 'user', content: prompt }
       ],
       temperature: 0.3
