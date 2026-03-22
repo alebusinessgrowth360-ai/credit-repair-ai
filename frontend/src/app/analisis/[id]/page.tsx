@@ -41,7 +41,7 @@ export default function AnalisisPage() {
       .then(r => r.json()).then(d => {
         if (d.data) {
           setAnalisis(d.data)
-          fetch(API + '/reportes/cliente/any', { headers: { Authorization: 'Bearer ' + token } }).catch(() => {})
+         
         }
       })
     fetch(API + '/reportes/by-id/' + id, { headers: { Authorization: 'Bearer ' + token } })
