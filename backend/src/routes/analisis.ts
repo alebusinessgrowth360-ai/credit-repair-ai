@@ -29,7 +29,25 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
     const textoReporte = pdfData.text.slice(0, 12000)
 
     const openai = await getOpenAI(usuarioId)
-    const prompt = 'Analiza este reporte de credito. Extrae datos personales, cuentas, inquiries, colecciones, charge-offs. Detecta errores disputables. Genera recomendaciones basadas en FCRA, FDCPA y FACTA. NO generes cartas. Responde SOLO con JSON valido: {"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[],"inquiries":[],"errores_detectados":[{"tipo":"","descripcion":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}'
+    const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales de protección al consumidor y crédito.
+
+Tu tarea es analizar el siguiente reporte de crédito completo y generar una evaluación total, clara, profesional y estructurada.
+
+IMPORTANTE:
+- Analiza el reporte completo.
+- Identifica el buró de crédito (Experian, Equifax, TransUnion) para cada cuenta, inquiry o dato cuando sea posible.
+- Compara la misma cuenta entre burós si aparece en más de uno.
+- Detecta inconsistencias entre burós.
+- Explica cada error en lenguaje claro.
+- Asocia cada hallazgo con la ley o principio aplicable (FCRA, FDCPA, FACTA).
+- No actúes como abogado.
+- No generes cartas.
+
+Responde SOLO con JSON válido con esta estructura exacta:
+{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[],"inquiries":[],"errores_detectados":[{"tipo":"","descripcion":"","buro":"","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"","buros_involucrados":"","diferencia":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}
+
+CONTENIDO DEL REPORTE:
+${textoReporte}`
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
