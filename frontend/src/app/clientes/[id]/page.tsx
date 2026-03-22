@@ -152,24 +152,20 @@ export default function DetalleClientePage() {
                 <div style={{ fontSize:'13px', fontWeight:'bold' }}>{r.tipo_reporte} v{r.version}</div>
                 <div style={{ fontSize:'11px', color:'#64748b' }}>{r.nombre_archivo}</div>
               </div>
-           <div style={{ display:'flex', gap:'8px' }}>
-  <button onClick={() => router.push('/reportes/' + r.id)}
-    style={{ padding:'6px 14px', background:'rgba(148,163,184,0.15)', border:'1px solid rgba(148,163,184,0.4)', borderRadius:'8px', color:'#94a3b8', fontSize:'12px', cursor:'pointer' }}>
-    Ver PDF
-  </button>
-  <button onClick={() => router.push('/analisis/' + r.id)}
-    style={{ padding:'6px 14px', background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.4)', borderRadius:'8px', color:'#4ade80', fontSize:'12px', cursor:'pointer' }}>
-    Ver análisis
-  </button>
-  <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
-    style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
-    {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
-  </button>
-</div>
-    style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
-    {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
-  </button>
-</div>
+              <div style={{ display:'flex', gap:'8px' }}>
+                <button onClick={() => router.push('/reportes/' + r.id)}
+                  style={{ padding:'6px 14px', background:'rgba(148,163,184,0.15)', border:'1px solid rgba(148,163,184,0.4)', borderRadius:'8px', color:'#94a3b8', fontSize:'12px', cursor:'pointer' }}>
+                  Ver PDF
+                </button>
+                <button onClick={() => router.push('/analisis/' + r.id)}
+                  style={{ padding:'6px 14px', background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.4)', borderRadius:'8px', color:'#4ade80', fontSize:'12px', cursor:'pointer' }}>
+                  Ver análisis
+                </button>
+                <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
+                  style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
+                  {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
+                </button>
+              </div>
             </div>
           ))}
         </div>
