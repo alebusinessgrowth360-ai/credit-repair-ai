@@ -48,5 +48,17 @@ router.get('/by-id/:reporte_id', requireAuth, async (req: AuthRequest, res: Resp
     res.status(500).json({ error: err.message })
   }
 })
-
+router.get('/pdf/:reporte_id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { reporte_id } = req.params
+  try {
+    const result = await pool.query(
+      'SELECT id, nombre_archivo, pdf_contenido FROM reportes_credito WHERE id = $1',
+      [reporte_id]
+    )
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Reporte no encontrado' })
+    res.json({ data: result.rows[0], error: null })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
 export default router
