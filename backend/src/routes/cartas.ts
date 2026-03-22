@@ -24,7 +24,7 @@ router.post('/generar', requireAuth, async (req: AuthRequest, res: Response) => 
     if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
     const c = cliente.rows[0]
     const openai = await getOpenAI(usuarioId)
-    const prompt = `Redacta una carta profesional de disputa de credito en espanol para:
+    const prompt = `Redacta una carta profesional de disputa de credito en English para:
 Cliente: ${c.nombre_completo}
 Direccion: ${c.direccion || ''}, ${c.ciudad || ''}, ${c.estado || ''} ${c.zip || ''}
 Tipo de carta: ${tipo_carta}
