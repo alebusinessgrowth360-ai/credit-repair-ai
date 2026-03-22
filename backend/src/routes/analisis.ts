@@ -2,6 +2,7 @@ import { Router, Response } from 'express'
 import pool from '../db/client'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 import OpenAI from 'openai'
+import pdfParse from 'pdf-parse'
 
 const router = Router()
 
@@ -22,24 +23,29 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
     if (reporte.rows.length === 0) return res.status(404).json({ error: 'Reporte no encontrado' })
     const pdfBase64 = reporte.rows[0].pdf_contenido
     if (!pdfBase64) return res.status(400).json({ error: 'Este reporte no tiene PDF guardado. Sube el reporte de nuevo.' })
+
+    const pdfBuffer = Buffer.from(pdfBase64, 'base64')
+    const pdfData = await pdfParse(pdfBuffer)
+    const textoReporte = pdfData.text.slice(0, 12000)
+
     const openai = await getOpenAI(usuarioId)
-    const prompt = 'Analiza este reporte de credito en PDF. Extrae datos personales, cuentas, inquiries, colecciones, charge-offs. Detecta errores disputables. Genera recomendaciones basadas en FCRA, FDCPA y FACTA. NO generes cartas. Responde SOLO con JSON valido: {"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[],"inquiries":[],"errores_detectados":[{"tipo":"","descripcion":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}'
+    const prompt = 'Analiza este reporte de credito. Extrae datos personales, cuentas, inquiries, colecciones, charge-offs. Detecta errores disputables. Genera recomendaciones basadas en FCRA, FDCPA y FACTA. NO generes cartas. Responde SOLO con JSON valido: {"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[],"inquiries":[],"errores_detectados":[{"tipo":"","descripcion":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}'
+
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'Eres un experto en reparacion de credito. Analiza reportes PDF y detecta errores disputables. Responde solo con JSON valido.' },
-        { role: 'user', content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: 'data:application/pdf;base64,' + pdfBase64 } }
-        ]}
+        { role: 'system', content: 'Eres un experto en reparacion de credito. Analiza reportes de credito y detecta errores disputables. Responde solo con JSON valido.' },
+        { role: 'user', content: prompt + '\n\nCONTENIDO DEL REPORTE:\n' + textoReporte }
       ],
       response_format: { type: 'json_object' },
       temperature: 0.2,
       max_tokens: 4000
     })
+
     const contenido = response.choices[0].message.content
     if (!contenido) throw new Error('Respuesta vacia de la IA')
     const analisisData = JSON.parse(contenido)
+
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
     const result = await pool.query(
       'INSERT INTO analisis_reportes (reporte_id, resumen_general, datos_personales, cuentas, inquiries, errores_detectados, recomendaciones, estado_general) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
@@ -47,6 +53,7 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
     )
     await pool.query('INSERT INTO logs_ia (usuario_id, tipo_operacion, modelo, tokens_entrada, tokens_salida, estado) VALUES ($1,$2,$3,$4,$5,$6)',
       [usuarioId, 'analisis_reporte', 'gpt-4o', response.usage?.prompt_tokens || 0, response.usage?.completion_tokens || 0, 'ok']).catch(() => {})
+
     res.json({ data: result.rows[0], error: null })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
