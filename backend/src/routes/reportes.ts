@@ -29,9 +29,9 @@ router.get('/cliente/:cliente_id', requireAuth, async (req: AuthRequest, res: Re
   const { cliente_id } = req.params
   try {
     const result = await pool.query(
-      'SELECT id, cliente_id, nombre_archivo, fecha_reporte, tipo_reporte, version, created_at FROM reportes_credito r JOIN clientes c ON c.id = r.cliente_id WHERE r.cliente_id = $1 AND c.usuario_id = $2 ORDER BY r.created_at DESC',
-      [cliente_id, usuarioId]
-    )
+  'SELECT r.id, r.cliente_id, r.nombre_archivo, r.fecha_reporte, r.tipo_reporte, r.version, r.created_at FROM reportes_credito r JOIN clientes c ON c.id = r.cliente_id WHERE r.cliente_id = $1 AND c.usuario_id = $2 ORDER BY r.created_at DESC',
+  [cliente_id, usuarioId]
+)
     res.json({ data: result.rows, error: null })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
