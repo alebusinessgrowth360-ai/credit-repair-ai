@@ -54,24 +54,15 @@ export default function DetalleClientePage() {
         const res = await fetch(API + '/reportes/upload', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({
-            cliente_id: id,
-            tipo_reporte: tipoReporte,
-            fecha_reporte: new Date().toISOString().split('T')[0],
-            nombre_archivo: archivo.name,
-            pdf_base64: base64
-          })
+          body: JSON.stringify({ cliente_id: id, tipo_reporte: tipoReporte, fecha_reporte: new Date().toISOString().split('T')[0], nombre_archivo: archivo.name, pdf_base64: base64 })
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error)
         cargarDatos(token)
-        setMensaje('Reporte subido correctamente. Ahora puedes analizarlo.')
+        setMensaje('Reporte subido correctamente.')
         setArchivo(null)
-      } catch (err) {
-        setError(err.message)
-      } finally {
-        setSubiendo(false)
-      }
+      } catch (err) { setError(err.message) }
+      finally { setSubiendo(false) }
     }
     reader.readAsDataURL(archivo)
   }
@@ -81,142 +72,148 @@ export default function DetalleClientePage() {
     const token = getToken()
     try {
       setMensaje('Analizando con IA... esto puede tardar 30-60 segundos.')
-      const res = await fetch(API + '/analizar/' + reporteId, {
-        method: 'POST',
-        headers: { Authorization: 'Bearer ' + token }
-      })
+      const res = await fetch(API + '/analizar/' + reporteId, { method: 'POST', headers: { Authorization: 'Bearer ' + token } })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setMensaje('Analisis completado.')
       router.push('/analisis/' + reporteId)
-    } catch (err) {
-      setError(err.message)
-      setMensaje('')
-    } finally {
-      setAnalizando(null)
-    }
+    } catch (err) { setError(err.message); setMensaje('') }
+    finally { setAnalizando(null) }
   }
 
   async function borrarReporte(reporteId) {
-    if (!confirm('¿Seguro que quieres borrar este reporte? Se perderá el análisis también.')) return
+    if (!confirm('¿Seguro que quieres borrar este reporte?')) return
     const token = getToken()
     try {
-      const res = await fetch(API + '/reportes/' + reporteId, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + token }
-      })
+      const res = await fetch(API + '/reportes/' + reporteId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
       if (!res.ok) throw new Error('Error al borrar')
       cargarDatos(token)
-    } catch (err) {
-      setError(err.message)
-    }
+    } catch (err) { setError(err.message) }
   }
 
   async function borrarCliente() {
-    if (!confirm('¿Seguro que quieres borrar este cliente? Se borrarán todos sus reportes y cartas.')) return
+    if (!confirm('¿Seguro? Se borrarán todos sus reportes y cartas.')) return
     const token = getToken()
     try {
-      const res = await fetch(API + '/clientes/' + id, {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + token }
-      })
+      const res = await fetch(API + '/clientes/' + id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
       if (!res.ok) throw new Error('Error al borrar')
       router.push('/clientes')
-    } catch (err) {
-      setError(err.message)
-    }
+    } catch (err) { setError(err.message) }
   }
 
-  if (!cliente) return <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#0a0f1e', color:'#94a3b8', fontFamily:'sans-serif' }}>Cargando...</div>
+  if (!cliente) return (
+    <div style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', background:'#030712', color:'#00ff88', fontFamily:'monospace', fontSize:'14px' }}>
+      <span>Cargando...</span>
+    </div>
+  )
 
   const fuentes = ['Experian','Equifax','TransUnion','IdentityIQ','SmartCredit','PrivacyGuard','MyScoreIQ','otro']
 
   return (
-    <div style={{ minHeight:'100vh', background:'#0a0f1e', color:'#f1f5f9', fontFamily:'sans-serif', padding:'40px' }}>
-      <button onClick={() => router.push('/clientes')} style={{ background:'none', border:'none', color:'#6366f1', cursor:'pointer', marginBottom:'24px', fontSize:'14px' }}>Clientes</button>
-      <div style={{ display:'flex', alignItems:'center', gap:'16px', marginBottom:'32px' }}>
-        <div style={{ width:'48px', height:'48px', borderRadius:'12px', background:'rgba(99,102,241,0.2)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px', fontWeight:'bold', color:'#818cf8' }}>
-          {cliente.nombre_completo.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <h1 style={{ fontSize:'24px', margin:0 }}>{cliente.nombre_completo}</h1>
-          <p style={{ color:'#64748b', fontSize:'13px', margin:0 }}>{cliente.email} · {cliente.telefono}</p>
-        </div>
-        <span style={{ marginLeft:'auto', fontSize:'12px', padding:'4px 12px', borderRadius:'20px', background:'rgba(34,197,94,0.15)', color:'#22c55e' }}>{cliente.estado_caso}</span>
-        <button onClick={borrarCliente}
-          style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
+    <div style={{ minHeight:'100vh', background:'#030712', color:'#e2e8f0', fontFamily:'sans-serif', padding:'40px', backgroundImage:'radial-gradient(ellipse at top, #0d1f0d 0%, #030712 70%)' }}>
+      
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'32px' }}>
+        <button onClick={() => router.push('/clientes')} style={{ background:'none', border:'none', color:'#00ff88', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', gap:'6px' }}>
+          ← Clientes
+        </button>
+        <button onClick={borrarCliente} style={{ padding:'6px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
           Borrar cliente
         </button>
       </div>
 
+      {/* Cliente info */}
+      <div style={{ display:'flex', alignItems:'center', gap:'16px', marginBottom:'32px', padding:'20px', background:'rgba(0,255,136,0.04)', border:'1px solid rgba(0,255,136,0.15)', borderRadius:'16px' }}>
+        <div style={{ width:'52px', height:'52px', borderRadius:'12px', background:'linear-gradient(135deg,#00ff88,#0ea5e9)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', fontWeight:'bold', color:'#030712' }}>
+          {cliente.nombre_completo.charAt(0).toUpperCase()}
+        </div>
+        <div>
+          <h1 style={{ fontSize:'22px', margin:0, color:'#f1f5f9' }}>{cliente.nombre_completo}</h1>
+          <p style={{ color:'#64748b', fontSize:'13px', margin:0 }}>{cliente.email} · {cliente.telefono}</p>
+        </div>
+        <span style={{ marginLeft:'auto', fontSize:'11px', fontWeight:'bold', padding:'4px 12px', borderRadius:'20px', background:'rgba(0,255,136,0.15)', color:'#00ff88', border:'1px solid rgba(0,255,136,0.3)' }}>
+          {cliente.estado_caso}
+        </span>
+      </div>
+
+      {/* Modal carta */}
       {cartaAbierta && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.8)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
-          <div style={{ background:'#1e293b', borderRadius:'16px', padding:'32px', maxWidth:'700px', width:'100%', maxHeight:'80vh', overflowY:'auto', position:'relative' }}>
-            <button onClick={() => setCartaAbierta(null)} style={{ position:'absolute', top:'16px', right:'16px', background:'none', border:'none', color:'#94a3b8', fontSize:'20px', cursor:'pointer' }}>✕</button>
-            <h2 style={{ fontSize:'16px', marginBottom:'16px' }}>{cartaAbierta.tipo_carta.replace(/_/g,' ')}</h2>
-            <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'16px' }}>{cartaAbierta.destinatario} · {cartaAbierta.estado}</p>
-            <pre style={{ fontSize:'13px', lineHeight:'1.6', whiteSpace:'pre-wrap', color:'#f1f5f9' }}>{cartaAbierta.contenido}</pre>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'16px', padding:'32px', maxWidth:'700px', width:'100%', maxHeight:'80vh', overflowY:'auto', position:'relative' }}>
+            <button onClick={() => setCartaAbierta(null)} style={{ position:'absolute', top:'16px', right:'16px', background:'none', border:'none', color:'#64748b', fontSize:'20px', cursor:'pointer' }}>✕</button>
+            <h2 style={{ fontSize:'16px', marginBottom:'8px', color:'#00ff88' }}>{cartaAbierta.tipo_carta.replace(/_/g,' ')}</h2>
+            <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'20px' }}>{cartaAbierta.destinatario} · {cartaAbierta.estado}</p>
+            <pre style={{ fontSize:'13px', lineHeight:'1.7', whiteSpace:'pre-wrap', color:'#e2e8f0', background:'rgba(255,255,255,0.03)', padding:'16px', borderRadius:'8px' }}>{cartaAbierta.contenido}</pre>
           </div>
         </div>
       )}
 
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'24px' }}>
+        {/* Columna izquierda */}
         <div>
-          <h2 style={{ fontSize:'16px', marginBottom:'16px' }}>Subir reporte PDF</h2>
-          <form onSubmit={subirReporte} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'16px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px' }}>
+          {/* Subir PDF */}
+          <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Subir reporte PDF</h2>
+          <form onSubmit={subirReporte} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'16px', padding:'20px', display:'flex', flexDirection:'column', gap:'12px', marginBottom:'28px' }}>
             <select value={tipoReporte} onChange={e => setTipoReporte(e.target.value)}
-              style={{ padding:'10px', background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px' }}>
+              style={{ padding:'10px', background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#e2e8f0', fontSize:'13px' }}>
               {fuentes.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
             <input type="file" accept=".pdf,application/pdf" onChange={e => setArchivo(e.target.files[0])} required
-              style={{ padding:'10px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px' }} />
-            {mensaje && <p style={{ color:'#22c55e', fontSize:'12px', margin:0 }}>{mensaje}</p>}
-            {error && <p style={{ color:'#fca5a5', fontSize:'12px', margin:0 }}>{error}</p>}
+              style={{ padding:'10px', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(0,255,136,0.15)', borderRadius:'8px', color:'#e2e8f0', fontSize:'13px' }} />
+            {mensaje && <p style={{ color:'#00ff88', fontSize:'12px', margin:0 }}>{mensaje}</p>}
+            {error && <p style={{ color:'#f87171', fontSize:'12px', margin:0 }}>{error}</p>}
             <button type="submit" disabled={subiendo}
-              style={{ padding:'10px', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', borderRadius:'8px', color:'#fff', fontSize:'13px', fontWeight:'bold', cursor:'pointer' }}>
+              style={{ padding:'10px', background: subiendo ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer' }}>
               {subiendo ? 'Subiendo...' : 'Subir PDF'}
             </button>
           </form>
-          <h2 style={{ fontSize:'16px', margin:'24px 0 16px' }}>Reportes ({reportes.length})</h2>
+
+          {/* Reportes */}
+          <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Reportes ({reportes.length})</h2>
           {reportes.length === 0 ? (
-            <p style={{ color:'#64748b', fontSize:'13px' }}>No hay reportes todavia.</p>
+            <p style={{ color:'#475569', fontSize:'13px' }}>No hay reportes todavia.</p>
           ) : reportes.map(r => (
-            <div key={r.id} style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-              <div>
-                <div style={{ fontSize:'13px', fontWeight:'bold' }}>{r.tipo_reporte} v{r.version}</div>
-                <div style={{ fontSize:'11px', color:'#64748b' }}>{r.nombre_archivo}</div>
+            <div key={r.id} style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'10px' }}>
+                <div>
+                  <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{r.tipo_reporte} v{r.version}</div>
+                  <div style={{ fontSize:'11px', color:'#475569' }}>{r.nombre_archivo}</div>
+                </div>
               </div>
-              <div style={{ display:'flex', gap:'8px' }}>
+              <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
                 <button onClick={() => router.push('/reportes/' + r.id)}
-                  style={{ padding:'6px 14px', background:'rgba(148,163,184,0.15)', border:'1px solid rgba(148,163,184,0.4)', borderRadius:'8px', color:'#94a3b8', fontSize:'12px', cursor:'pointer' }}>
+                  style={{ padding:'5px 12px', background:'rgba(148,163,184,0.1)', border:'1px solid rgba(148,163,184,0.3)', borderRadius:'6px', color:'#94a3b8', fontSize:'11px', cursor:'pointer' }}>
                   Ver PDF
                 </button>
                 <button onClick={() => router.push('/analisis/' + r.id)}
-                  style={{ padding:'6px 14px', background:'rgba(34,197,94,0.15)', border:'1px solid rgba(34,197,94,0.4)', borderRadius:'8px', color:'#4ade80', fontSize:'12px', cursor:'pointer' }}>
+                  style={{ padding:'5px 12px', background:'rgba(0,255,136,0.1)', border:'1px solid rgba(0,255,136,0.3)', borderRadius:'6px', color:'#00ff88', fontSize:'11px', cursor:'pointer' }}>
                   Ver análisis
                 </button>
                 <button onClick={() => analizar(r.id)} disabled={analizando === r.id}
-                  style={{ padding:'6px 14px', background: analizando === r.id ? 'rgba(99,102,241,0.3)' : 'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:'8px', color:'#a5b4fc', fontSize:'12px', cursor:'pointer' }}>
+                  style={{ padding:'5px 12px', background:'rgba(14,165,233,0.1)', border:'1px solid rgba(14,165,233,0.3)', borderRadius:'6px', color:'#38bdf8', fontSize:'11px', cursor:'pointer' }}>
                   {analizando === r.id ? 'Analizando...' : 'Analizar con IA'}
                 </button>
                 <button onClick={() => borrarReporte(r.id)}
-                  style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
+                  style={{ padding:'5px 12px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'6px', color:'#f87171', fontSize:'11px', cursor:'pointer' }}>
                   Borrar
                 </button>
               </div>
             </div>
           ))}
         </div>
+
+        {/* Columna derecha - Cartas */}
         <div>
-          <h2 style={{ fontSize:'16px', marginBottom:'16px' }}>Cartas ({cartas.length})</h2>
+          <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Cartas ({cartas.length})</h2>
           {cartas.length === 0 ? (
-            <p style={{ color:'#64748b', fontSize:'13px' }}>Las cartas apareceran despues del analisis.</p>
+            <p style={{ color:'#475569', fontSize:'13px' }}>Las cartas apareceran despues del analisis.</p>
           ) : cartas.map(c => (
             <div key={c.id} onClick={() => setCartaAbierta(c)}
-              style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.08)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px', cursor:'pointer' }}>
-              <div style={{ fontSize:'13px', fontWeight:'bold' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
-              <div style={{ fontSize:'11px', color:'#64748b' }}>{c.destinatario} · {c.estado}</div>
-              <div style={{ fontSize:'11px', color:'#6366f1', marginTop:'4px' }}>Click para ver →</div>
+              style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px', cursor:'pointer', transition:'border-color 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,255,136,0.4)'}
+              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,255,136,0.1)'}>
+              <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
+              <div style={{ fontSize:'11px', color:'#475569', marginTop:'3px' }}>{c.destinatario} · {c.estado}</div>
+              <div style={{ fontSize:'11px', color:'#00ff88', marginTop:'6px' }}>Click para ver →</div>
             </div>
           ))}
         </div>
