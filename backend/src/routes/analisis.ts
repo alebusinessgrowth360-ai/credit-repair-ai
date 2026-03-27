@@ -89,4 +89,65 @@ router.get('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response) 
   }
 })
 
+router.post('/comparar', requireAuth, async (req: AuthRequest, res: Response) => {
+  const usuarioId = req.usuario!.id
+  const { cliente_id, reporte_base_id, reporte_comparado_id } = req.body
+  if (!cliente_id || !reporte_base_id || !reporte_comparado_id) {
+    return res.status(400).json({ error: 'Se requieren cliente_id, reporte_base_id y reporte_comparado_id' })
+  }
+  try {
+    const cliente = await pool.query('SELECT id FROM clientes WHERE id = $1 AND usuario_id = $2', [cliente_id, usuarioId])
+    if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
+
+    const [base, comparado] = await Promise.all([
+      pool.query('SELECT * FROM analisis_reportes WHERE reporte_id = $1', [reporte_base_id]),
+      pool.query('SELECT * FROM analisis_reportes WHERE reporte_id = $1', [reporte_comparado_id])
+    ])
+    if (base.rows.length === 0) return res.status(400).json({ error: 'El reporte base no tiene analisis. Analiza primero.' })
+    if (comparado.rows.length === 0) return res.status(400).json({ error: 'El reporte comparado no tiene analisis. Analiza primero.' })
+
+    const b = base.rows[0]
+    const c = comparado.rows[0]
+
+    const erroresBase = (b.errores_detectados || []).length
+    const erroresComp = (c.errores_detectados || []).length
+    const cuentasNegBase = b.resumen_general?.cuentas_negativas ?? 0
+    const cuentasNegComp = c.resumen_general?.cuentas_negativas ?? 0
+
+    let progreso: string
+    if (erroresComp < erroresBase || cuentasNegComp < cuentasNegBase) progreso = 'mejoro'
+    else if (erroresComp > erroresBase || cuentasNegComp > cuentasNegBase) progreso = 'empeoro'
+    else progreso = 'sin_cambios'
+
+    const resultado = {
+      errores_base: erroresBase,
+      errores_comparado: erroresComp,
+      errores_eliminados: Math.max(0, erroresBase - erroresComp),
+      errores_nuevos: Math.max(0, erroresComp - erroresBase),
+      cuentas_negativas_base: cuentasNegBase,
+      cuentas_negativas_comparado: cuentasNegComp,
+      estado_base: b.estado_general,
+      estado_comparado: c.estado_general
+    }
+
+    const resumen = progreso === 'mejoro'
+      ? `Mejora detectada: se eliminaron ${resultado.errores_eliminados} errores y ${Math.max(0, cuentasNegBase - cuentasNegComp)} cuentas negativas.`
+      : progreso === 'empeoro'
+      ? `Se detectaron ${resultado.errores_nuevos} errores nuevos y ${Math.max(0, cuentasNegComp - cuentasNegBase)} cuentas negativas adicionales.`
+      : 'Sin cambios significativos entre los dos reportes.'
+
+    const result = await pool.query(
+      `INSERT INTO comparaciones_reportes (cliente_id, reporte_base_id, reporte_comparado_id, resultado, resumen_cambios, progreso_general)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       ON CONFLICT DO NOTHING
+       RETURNING *`,
+      [cliente_id, reporte_base_id, reporte_comparado_id, JSON.stringify(resultado), resumen, progreso]
+    )
+
+    res.status(201).json({ data: result.rows[0] || { resultado, resumen, progreso_general: progreso }, error: null })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router
