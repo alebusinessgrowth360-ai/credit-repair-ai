@@ -66,8 +66,21 @@ ${textoReporte}`
 
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
     const result = await pool.query(
-      'INSERT INTO analisis_reportes (reporte_id, resumen_general, datos_personales, cuentas, inquiries, errores_detectados, recomendaciones, estado_general) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [reporte_id, JSON.stringify(analisisData.resumen_general), JSON.stringify(analisisData.datos_personales), JSON.stringify(analisisData.cuentas || []), JSON.stringify(analisisData.inquiries || []), JSON.stringify(analisisData.errores_detectados || []), JSON.stringify(analisisData.recomendaciones || []), analisisData.resumen_general?.estado_general || 'riesgo_medio']
+      `INSERT INTO analisis_reportes
+         (reporte_id, resumen_general, datos_personales, cuentas, inquiries,
+          errores_detectados, inconsistencias_entre_buros, recomendaciones, estado_general)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [
+        reporte_id,
+        JSON.stringify(analisisData.resumen_general),
+        JSON.stringify(analisisData.datos_personales),
+        JSON.stringify(analisisData.cuentas || []),
+        JSON.stringify(analisisData.inquiries || []),
+        JSON.stringify(analisisData.errores_detectados || []),
+        JSON.stringify(analisisData.inconsistencias_entre_buros || []),
+        JSON.stringify(analisisData.recomendaciones || []),
+        analisisData.resumen_general?.estado_general || 'riesgo_medio'
+      ]
     )
     await pool.query('INSERT INTO logs_ia (usuario_id, tipo_operacion, modelo, tokens_entrada, tokens_salida, estado) VALUES ($1,$2,$3,$4,$5,$6)',
       [usuarioId, 'analisis_reporte', 'gpt-4o', response.usage?.prompt_tokens || 0, response.usage?.completion_tokens || 0, 'ok']).catch(() => {})

@@ -14,6 +14,12 @@ export default function ClientesPage() {
   const [nombre, setNombre] = useState('')
   const [email, setEmail] = useState('')
   const [telefono, setTelefono] = useState('')
+  const [direccion, setDireccion] = useState('')
+  const [ciudad, setCiudad] = useState('')
+  const [estado, setEstado] = useState('')
+  const [zip, setZip] = useState('')
+  const [fechaNacimiento, setFechaNacimiento] = useState('')
+  const [ssnParcial, setSsnParcial] = useState('')
   const [mostrando, setMostrando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const router = useRouter()
@@ -35,12 +41,12 @@ export default function ClientesPage() {
     const res = await fetch(API + '/clientes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-      body: JSON.stringify({ nombre_completo: nombre, email, telefono })
+      body: JSON.stringify({ nombre_completo: nombre, email, telefono, direccion, ciudad, estado, zip, fecha_nacimiento: fechaNacimiento || null, ssn_parcial: ssnParcial || null })
     })
     const data = await res.json()
     if (data.data) {
       setClientes([data.data, ...clientes])
-      setNombre(''); setEmail(''); setTelefono('')
+      setNombre(''); setEmail(''); setTelefono(''); setDireccion(''); setCiudad(''); setEstado(''); setZip(''); setFechaNacimiento(''); setSsnParcial('')
       setMostrando(false)
     }
     setGuardando(false)
@@ -89,10 +95,29 @@ export default function ClientesPage() {
               style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
             <input placeholder="Teléfono" value={telefono} onChange={e=>setTelefono(e.target.value)}
               style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
-            <button type="submit" disabled={guardando}
-              style={{ padding:'11px', background: guardando ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer' }}>
-              {guardando ? 'Guardando...' : 'Crear cliente'}
-            </button>
+            <input placeholder="Dirección" value={direccion} onChange={e=>setDireccion(e.target.value)}
+              style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
+            <input placeholder="Ciudad" value={ciudad} onChange={e=>setCiudad(e.target.value)}
+              style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+              <input placeholder="Estado (FL, TX...)" value={estado} onChange={e=>setEstado(e.target.value)} maxLength={2}
+                style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
+              <input placeholder="ZIP" value={zip} onChange={e=>setZip(e.target.value)} maxLength={10}
+                style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
+            </div>
+            <div>
+              <label style={{ fontSize:'10px', color:'#475569', display:'block', marginBottom:'4px' }}>Fecha de nacimiento</label>
+              <input type="date" value={fechaNacimiento} onChange={e=>setFechaNacimiento(e.target.value)}
+                style={{ width:'100%', padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none', boxSizing:'border-box' }} />
+            </div>
+            <input placeholder="SSN (últimos 4): XXXX" value={ssnParcial} onChange={e=>setSsnParcial(e.target.value)} maxLength={4}
+              style={{ padding:'11px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'13px', outline:'none' }} />
+            <div style={{ gridColumn:'span 2' }}>
+              <button type="submit" disabled={guardando}
+                style={{ width:'100%', padding:'11px', background: guardando ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer' }}>
+                {guardando ? 'Guardando...' : 'Crear cliente'}
+              </button>
+            </div>
           </form>
         </div>
       )}

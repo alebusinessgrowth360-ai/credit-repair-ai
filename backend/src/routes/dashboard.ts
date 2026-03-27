@@ -29,4 +29,30 @@ router.get('/resumen', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 })
 
+router.get('/clientes_progreso', requireAuth, async (req: AuthRequest, res: Response) => {
+  const usuarioId = req.usuario!.id
+  try {
+    const result = await pool.query(`
+      SELECT
+        c.id,
+        c.nombre_completo,
+        c.estado_caso,
+        (SELECT MAX(r.created_at) FROM reportes_credito r WHERE r.cliente_id = c.id) AS ultimo_reporte,
+        (SELECT COUNT(*) FROM reportes_credito r WHERE r.cliente_id = c.id) AS total_reportes,
+        (SELECT a.estado_general FROM analisis_reportes a JOIN reportes_credito r ON r.id = a.reporte_id WHERE r.cliente_id = c.id ORDER BY r.created_at DESC LIMIT 1) AS estado_credito,
+        (SELECT jsonb_array_length(a.errores_detectados) FROM analisis_reportes a JOIN reportes_credito r ON r.id = a.reporte_id WHERE r.cliente_id = c.id ORDER BY r.created_at DESC LIMIT 1) AS errores_count,
+        (SELECT COUNT(*) FROM disputas d WHERE d.cliente_id = c.id AND d.estado = 'pendiente') AS disputas_pendientes,
+        (SELECT COUNT(*) FROM disputas d WHERE d.cliente_id = c.id AND d.estado = 'enviada') AS disputas_enviadas,
+        (SELECT COUNT(*) FROM cartas ca WHERE ca.cliente_id = c.id) AS cartas_count
+      FROM clientes c
+      WHERE c.usuario_id = $1
+      ORDER BY ultimo_reporte DESC NULLS LAST, c.created_at DESC
+      LIMIT 10
+    `, [usuarioId])
+    res.json({ data: result.rows, error: null })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router

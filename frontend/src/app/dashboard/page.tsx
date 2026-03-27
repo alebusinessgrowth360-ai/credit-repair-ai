@@ -11,16 +11,22 @@ function getToken() {
 
 export default function DashboardPage() {
   const [data, setData] = useState(null)
+  const [clientes, setClientes] = useState([])
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
     const token = getToken()
     if (!token) { router.push('/auth/login'); return }
-    fetch(process.env.NEXT_PUBLIC_API_URL + '/dashboard/resumen', {
-      headers: { Authorization: 'Bearer ' + token }
-    }).then(r => r.json()).then(d => { setData(d.data); setLoading(false) })
-      .catch(() => setLoading(false))
+    const API = process.env.NEXT_PUBLIC_API_URL
+    Promise.all([
+      fetch(API + '/dashboard/resumen', { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json()),
+      fetch(API + '/dashboard/clientes_progreso', { headers: { Authorization: 'Bearer ' + token } }).then(r => r.json())
+    ]).then(([resumen, prog]) => {
+      setData(resumen.data)
+      setClientes(prog.data || [])
+      setLoading(false)
+    }).catch(() => setLoading(false))
   }, [])
 
   if (loading) return (
@@ -70,7 +76,7 @@ export default function DashboardPage() {
 
       {/* Links */}
       <h2 style={{ fontSize:'13px', fontWeight:'bold', color:'#00ff88', textTransform:'uppercase', letterSpacing:'2px', marginBottom:'16px' }}>Acceso rápido</h2>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:'12px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:'12px', marginBottom:'40px' }}>
         {links.map(a => (
           <Link key={a.label} href={a.href} style={{ textDecoration:'none' }}>
             <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:'14px', padding:'20px', cursor:'pointer', transition:'all 0.2s' }}
@@ -83,6 +89,56 @@ export default function DashboardPage() {
           </Link>
         ))}
       </div>
+
+      {/* Per-client progress */}
+      {clientes.length > 0 && (
+        <>
+          <h2 style={{ fontSize:'13px', fontWeight:'bold', color:'#00ff88', textTransform:'uppercase', letterSpacing:'2px', marginBottom:'16px' }}>Progreso de clientes</h2>
+          <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:'16px', overflow:'hidden' }}>
+            {clientes.map((c: any, i: number) => {
+              const estadoColor: Record<string,string> = { riesgo_bajo:'#00ff88', riesgo_medio:'#f59e0b', riesgo_alto:'#ef4444', critico:'#dc2626' }
+              const casoColor: Record<string,string> = { activo:'#00ff88', en_progreso:'#f59e0b', pendiente:'#94a3b8', cerrado:'#475569' }
+              const creditoEstado = c.estado_credito || '—'
+              const color = estadoColor[creditoEstado] || '#475569'
+              const fechaStr = c.ultimo_reporte ? new Date(c.ultimo_reporte).toLocaleDateString('es-MX', { day:'2-digit', month:'short', year:'numeric' }) : 'Sin reportes'
+              return (
+                <div key={c.id}
+                  style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom: i < clientes.length-1 ? '1px solid rgba(255,255,255,0.05)' : 'none', cursor:'pointer' }}
+                  onClick={() => router.push('/clientes/' + c.id)}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,255,136,0.04)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                  <div style={{ display:'flex', alignItems:'center', gap:'12px', flex:1 }}>
+                    <div style={{ width:'36px', height:'36px', borderRadius:'8px', background:`linear-gradient(135deg,${color}22,${color}11)`, border:`1px solid ${color}44`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'14px', fontWeight:'bold', color }}>
+                      {c.nombre_completo.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{c.nombre_completo}</div>
+                      <div style={{ fontSize:'11px', color:'#475569' }}>Último reporte: {fechaStr}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:'16px' }}>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'16px', fontWeight:'bold', color: (c.errores_count || 0) > 0 ? '#ef4444' : '#00ff88' }}>{c.errores_count || 0}</div>
+                      <div style={{ fontSize:'10px', color:'#475569' }}>Errores</div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'16px', fontWeight:'bold', color: (c.disputas_pendientes || 0) > 0 ? '#f59e0b' : '#475569' }}>{c.disputas_pendientes || 0}</div>
+                      <div style={{ fontSize:'10px', color:'#475569' }}>Disputas</div>
+                    </div>
+                    <div style={{ textAlign:'center' }}>
+                      <div style={{ fontSize:'16px', fontWeight:'bold', color:'#a78bfa' }}>{c.cartas_count || 0}</div>
+                      <div style={{ fontSize:'10px', color:'#475569' }}>Cartas</div>
+                    </div>
+                    <span style={{ fontSize:'10px', fontWeight:'bold', padding:'3px 10px', borderRadius:'20px', background: (casoColor[c.estado_caso] || '#94a3b8') + '20', color: casoColor[c.estado_caso] || '#94a3b8', border:`1px solid ${casoColor[c.estado_caso] || '#94a3b8'}44` }}>
+                      {c.estado_caso}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
     </div>
   )
 }
