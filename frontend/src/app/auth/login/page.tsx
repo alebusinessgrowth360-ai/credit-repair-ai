@@ -73,8 +73,9 @@ export default function LoginPage() {
           </form>
         </div>
 
-        <p style={{ textAlign:'center', color:'#1e3a2f', fontSize:'12px', marginTop:'24px' }}>
-          BusinessGrowth360 · Credit Repair AI
+        <p style={{ textAlign:'center', color:'#475569', fontSize:'13px', marginTop:'24px' }}>
+          ¿No tienes cuenta?{' '}
+          <a href="/auth/register" style={{ color:'#00ff88', textDecoration:'none', fontWeight:'bold' }}>Crear cuenta</a>
         </p>
       </div>
     </main>

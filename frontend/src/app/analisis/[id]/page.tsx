@@ -8,6 +8,14 @@ function getToken() {
   return match ? match[1] : localStorage.getItem('token')
 }
 
+function descargarHTML(html: string, filename: string) {
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 const BOTONES = [
   { tipo:'carta_datos_personales', label:'Personal Data', dest:'Experian' },
   { tipo:'carta_cuenta_no_reconocida', label:'Unrecognized Account', dest:'Experian' },
@@ -31,6 +39,11 @@ export default function AnalisisPage() {
   const [clienteId, setClienteId] = useState(null)
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
+  const [exportando, setExportando] = useState(false)
+  const [creandoDisputa, setCreandoDisputa] = useState(false)
+  const [modalDisputa, setModalDisputa] = useState(false)
+  const [tipDisputa, setTipDisputa] = useState('')
+  const [buroDisputa, setBuroDisputa] = useState('Experian')
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -42,6 +55,39 @@ export default function AnalisisPage() {
     fetch(API + '/reportes/by-id/' + id, { headers: { Authorization: 'Bearer ' + token } })
       .then(r => r.json()).then(d => { if (d.data) setClienteId(d.data.cliente_id) }).catch(() => {})
   }, [id])
+
+  async function exportarEvaluacion() {
+    setExportando(true); setError('')
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/exportar/evaluacion/' + id, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      descargarHTML(data.data.html, data.data.filename)
+    } catch (err) { setError(err.message) }
+    finally { setExportando(false) }
+  }
+
+  async function crearDisputa(e) {
+    e.preventDefault()
+    setCreandoDisputa(true); setError('')
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/disputas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ cliente_id: clienteId, reporte_id: id, tipo_disputa: tipDisputa, buro_o_entidad: buroDisputa })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setMensaje('✓ Disputa creada correctamente')
+      setModalDisputa(false)
+      setTipDisputa(''); setBuroDisputa('Experian')
+    } catch (err) { setError(err.message) }
+    finally { setCreandoDisputa(false) }
+  }
 
   async function generarCarta(tipo, dest) {
     setGenerando(tipo); setError('')
@@ -76,12 +122,50 @@ export default function AnalisisPage() {
 
   return (
     <div style={{ minHeight:'100vh', background:'#030712', backgroundImage:'radial-gradient(ellipse at top, #0d1f0d 0%, #030712 70%)', color:'#e2e8f0', fontFamily:'sans-serif', padding:'40px' }}>
-      
+
+      {/* Modal crear disputa */}
+      {modalDisputa && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'16px', padding:'32px', maxWidth:'440px', width:'100%', position:'relative' }}>
+            <button onClick={() => setModalDisputa(false)} style={{ position:'absolute', top:'16px', right:'16px', background:'none', border:'none', color:'#64748b', fontSize:'20px', cursor:'pointer' }}>✕</button>
+            <h2 style={{ fontSize:'16px', marginBottom:'20px', color:'#00ff88' }}>Crear disputa</h2>
+            <form onSubmit={crearDisputa} style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+              <div>
+                <label style={{ display:'block', fontSize:'11px', color:'#00ff88', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'1px' }}>Tipo de disputa</label>
+                <input value={tipDisputa} onChange={e => setTipDisputa(e.target.value)} required placeholder="Ej: Cuenta no reconocida - Bank of America"
+                  style={{ width:'100%', padding:'10px', background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#e2e8f0', fontSize:'13px', boxSizing:'border-box' as const }} />
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:'11px', color:'#00ff88', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'1px' }}>Buró o entidad</label>
+                <select value={buroDisputa} onChange={e => setBuroDisputa(e.target.value)}
+                  style={{ width:'100%', padding:'10px', background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#e2e8f0', fontSize:'13px' }}>
+                  <option>Experian</option><option>Equifax</option><option>TransUnion</option>
+                  <option>Creditor</option><option>Collection Agency</option><option>Otro</option>
+                </select>
+              </div>
+              <button type="submit" disabled={creandoDisputa}
+                style={{ padding:'11px', background: creandoDisputa ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', marginTop:'4px' }}>
+                {creandoDisputa ? 'Creando...' : 'Crear disputa'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'32px' }}>
         <button onClick={() => router.back()} style={{ background:'none', border:'none', color:'#00ff88', cursor:'pointer', fontSize:'14px' }}>← Back</button>
         <h1 style={{ fontSize:'20px', margin:0, color:'#f1f5f9', fontWeight:'bold' }}>Analysis Results</h1>
-        <div></div>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={() => setModalDisputa(true)}
+            style={{ padding:'8px 14px', background:'rgba(167,139,250,0.1)', border:'1px solid rgba(167,139,250,0.3)', borderRadius:'8px', color:'#a78bfa', fontSize:'12px', cursor:'pointer' }}>
+            + Disputa
+          </button>
+          <button onClick={exportarEvaluacion} disabled={exportando}
+            style={{ padding:'8px 14px', background:'rgba(0,255,136,0.1)', border:'1px solid rgba(0,255,136,0.3)', borderRadius:'8px', color:'#00ff88', fontSize:'12px', cursor:'pointer' }}>
+            {exportando ? 'Exportando...' : '↓ Exportar'}
+          </button>
+        </div>
       </div>
 
       {/* Resumen general */}

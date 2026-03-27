@@ -21,6 +21,11 @@ export default function DetalleClientePage() {
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
   const [cartaAbierta, setCartaAbierta] = useState(null)
+  const [exportandoCarta, setExportandoCarta] = useState(null)
+  const [comparando, setComparando] = useState(false)
+  const [reporteBase, setReporteBase] = useState('')
+  const [reporteComp, setReporteComp] = useState('')
+  const [resultadoComparacion, setResultadoComparacion] = useState(null)
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -98,6 +103,48 @@ export default function DetalleClientePage() {
       if (!res.ok) throw new Error('Error al borrar')
       router.push('/clientes')
     } catch (err) { setError(err.message) }
+  }
+
+  function descargarHTML(html: string, filename: string) {
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function exportarCarta(cartaId: string) {
+    setExportandoCarta(cartaId)
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/exportar/carta/' + cartaId, {
+        method: 'POST', headers: { Authorization: 'Bearer ' + token }
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      descargarHTML(data.data.html, data.data.filename)
+    } catch (err) { setError(err.message) }
+    finally { setExportandoCarta(null) }
+  }
+
+  async function compararReportes(e) {
+    e.preventDefault()
+    if (!reporteBase || !reporteComp || reporteBase === reporteComp) {
+      setError('Selecciona dos reportes diferentes'); return
+    }
+    setComparando(true); setError(''); setResultadoComparacion(null)
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/analizar/comparar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ cliente_id: id, reporte_base_id: reporteBase, reporte_comparado_id: reporteComp })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResultadoComparacion(data.data)
+    } catch (err) { setError(err.message) }
+    finally { setComparando(false) }
   }
 
   if (!cliente) return (
@@ -201,21 +248,60 @@ export default function DetalleClientePage() {
           ))}
         </div>
 
-        {/* Columna derecha - Cartas */}
+        {/* Columna derecha */}
         <div>
+          {/* Cartas */}
           <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Cartas ({cartas.length})</h2>
           {cartas.length === 0 ? (
             <p style={{ color:'#475569', fontSize:'13px' }}>Las cartas apareceran despues del analisis.</p>
           ) : cartas.map(c => (
-            <div key={c.id} onClick={() => setCartaAbierta(c)}
-              style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px', cursor:'pointer', transition:'border-color 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(0,255,136,0.4)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(0,255,136,0.1)'}>
-              <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
-              <div style={{ fontSize:'11px', color:'#475569', marginTop:'3px' }}>{c.destinatario} · {c.estado}</div>
-              <div style={{ fontSize:'11px', color:'#00ff88', marginTop:'6px' }}>Click para ver →</div>
+            <div key={c.id}
+              style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(0,255,136,0.1)', borderRadius:'12px', padding:'14px 16px', marginBottom:'10px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:'10px' }}>
+                <div onClick={() => setCartaAbierta(c)} style={{ cursor:'pointer', flex:1 }}>
+                  <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
+                  <div style={{ fontSize:'11px', color:'#475569', marginTop:'3px' }}>{c.destinatario} · {c.estado}</div>
+                </div>
+                <button onClick={() => exportarCarta(c.id)} disabled={exportandoCarta === c.id}
+                  style={{ padding:'4px 10px', background:'rgba(56,189,248,0.1)', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'6px', color:'#38bdf8', fontSize:'11px', cursor:'pointer', flexShrink:0 }}>
+                  {exportandoCarta === c.id ? '...' : '↓ Export'}
+                </button>
+              </div>
             </div>
           ))}
+
+          {/* Comparar reportes */}
+          {reportes.length >= 2 && (
+            <div style={{ marginTop:'28px' }}>
+              <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#a78bfa', textTransform:'uppercase', letterSpacing:'1px' }}>Comparar reportes</h2>
+              <div style={{ background:'rgba(167,139,250,0.04)', border:'1px solid rgba(167,139,250,0.15)', borderRadius:'12px', padding:'16px' }}>
+                <form onSubmit={compararReportes} style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+                  <select value={reporteBase} onChange={e => setReporteBase(e.target.value)} required
+                    style={{ padding:'9px', background:'#0d1117', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'8px', color:'#e2e8f0', fontSize:'12px' }}>
+                    <option value="">Reporte base...</option>
+                    {reportes.map(r => <option key={r.id} value={r.id}>{r.tipo_reporte} v{r.version} — {r.fecha_reporte}</option>)}
+                  </select>
+                  <select value={reporteComp} onChange={e => setReporteComp(e.target.value)} required
+                    style={{ padding:'9px', background:'#0d1117', border:'1px solid rgba(167,139,250,0.2)', borderRadius:'8px', color:'#e2e8f0', fontSize:'12px' }}>
+                    <option value="">Reporte comparado...</option>
+                    {reportes.map(r => <option key={r.id} value={r.id}>{r.tipo_reporte} v{r.version} — {r.fecha_reporte}</option>)}
+                  </select>
+                  <button type="submit" disabled={comparando}
+                    style={{ padding:'9px', background: comparando ? 'rgba(167,139,250,0.2)' : 'rgba(167,139,250,0.15)', border:'1px solid rgba(167,139,250,0.4)', borderRadius:'8px', color:'#a78bfa', fontSize:'12px', fontWeight:'bold', cursor:'pointer' }}>
+                    {comparando ? 'Comparando...' : 'Comparar con IA'}
+                  </button>
+                </form>
+                {resultadoComparacion && (
+                  <div style={{ marginTop:'12px', padding:'12px', background:'rgba(0,0,0,0.3)', borderRadius:'8px' }}>
+                    <div style={{ fontSize:'12px', fontWeight:'bold', color: resultadoComparacion.progreso_general === 'mejoro' ? '#00ff88' : resultadoComparacion.progreso_general === 'empeoro' ? '#f87171' : '#94a3b8', marginBottom:'6px' }}>
+                      {resultadoComparacion.progreso_general === 'mejoro' ? '↑ Mejora detectada' : resultadoComparacion.progreso_general === 'empeoro' ? '↓ Empeoramiento' : '→ Sin cambios'}
+                    </div>
+                    <p style={{ fontSize:'12px', color:'#94a3b8', margin:0 }}>{resultadoComparacion.resumen_cambios}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

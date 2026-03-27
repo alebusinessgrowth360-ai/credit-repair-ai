@@ -39,8 +39,8 @@ export default function DashboardPage() {
 
   const links = [
     { href:'/clientes', label:'Clientes', icon:'👥', desc:'Administra tus clientes' },
-    { href:'/clientes', label:'Reportes', icon:'📄', desc:'Ver reportes de crédito' },
-    { href:'/clientes', label:'Cartas', icon:'✉️', desc:'Cartas de disputa' },
+    { href:'/disputas', label:'Disputas', icon:'📋', desc:'Seguimiento de disputas' },
+    { href:'/branding', label:'Branding', icon:'🎨', desc:'Personaliza tus documentos' },
     { href:'/configuracion', label:'Config. IA', icon:'⚙️', desc:'Configura tu API Key' },
   ]
 
