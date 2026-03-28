@@ -70,6 +70,8 @@ export default function AnalisisPage() {
   const [buroDisputa, setBuroDisputa] = useState('Experian')
   const [bureauLetra, setBureauLetra] = useState('Experian')
   const [tipoLetraSeleccionado, setTipoLetraSeleccionado] = useState('carta_cuenta_no_reconocida')
+  const [generandoTodas, setGenerandoTodas] = useState(false)
+  const [progresoCarta, setProgresoCarta] = useState('')
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -115,6 +117,35 @@ export default function AnalisisPage() {
       setTipDisputa(''); setBuroDisputa('Experian')
     } catch (err: any) { setError(err.message) }
     finally { setCreandoDisputa(false) }
+  }
+
+  async function generarTodasCartas() {
+    if (!clienteId) { setError('No se pudo obtener el cliente. Recarga la página.'); return }
+    const erroresList: any[] = analisis?.errores_detectados || []
+    if (erroresList.length === 0) { setError('No hay errores detectados para generar cartas.'); return }
+    setGenerandoTodas(true); setError(''); setMensaje('')
+    const token = getToken()
+    let ok = 0; let fail = 0
+    for (let i = 0; i < erroresList.length; i++) {
+      const e = erroresList[i]
+      setProgresoCarta(`Generando carta ${i + 1} de ${erroresList.length}...`)
+      try {
+        const res = await fetch(API + '/cartas/generar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            cliente_id: clienteId, reporte_id: id,
+            tipo_carta: inferTipoCarta(e.tipo),
+            destinatario: e.buro || 'Experian',
+            ley_aplicada: e.ley_aplicable || 'FCRA',
+            error_detectado: e
+          })
+        })
+        if (res.ok) ok++; else fail++
+      } catch { fail++ }
+    }
+    setGenerandoTodas(false); setProgresoCarta('')
+    setMensaje(`✓ ${ok} carta${ok !== 1 ? 's' : ''} generada${ok !== 1 ? 's' : ''}${fail > 0 ? ` · ${fail} con error` : ''}. Verifica en el perfil del cliente.`)
   }
 
   async function generarCarta(tipo: string, dest: string, ley = 'FCRA', errorContext?: any) {
@@ -294,7 +325,13 @@ export default function AnalisisPage() {
       {/* Detected Errors */}
       {errores.length > 0 && (
         <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#f87171', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>⚠ Detected Errors ({errores.length})</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' }}>
+            <h2 style={{ fontSize: '12px', margin: 0, color: '#f87171', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>⚠ Detected Errors ({errores.length})</h2>
+            <button className="no-print" onClick={generarTodasCartas} disabled={generandoTodas || !clienteId}
+              style={{ padding: '6px 14px', background: generandoTodas ? 'rgba(0,255,136,0.1)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border: 'none', borderRadius: '7px', color: '#030712', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {generandoTodas ? (progresoCarta || 'Generando...') : `⚡ Generate All Letters (${errores.length})`}
+            </button>
+          </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             {errores.map((e: any, i: number) => (
               <div key={i} style={{ background: 'rgba(239,68,68,0.04)', border: '1px solid rgba(239,68,68,0.12)', borderRadius: '10px', padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '10px' }}>
