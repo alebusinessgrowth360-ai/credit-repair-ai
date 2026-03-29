@@ -43,8 +43,8 @@ IMPORTANTE:
 - No actúes como abogado.
 - No generes cartas.
 
-Responde SOLO con JSON válido con esta estructura exacta:
-{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[],"inquiries":[],"errores_detectados":[{"tipo":"","descripcion":"","buro":"","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"","buros_involucrados":"","diferencia":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}
+Responde SOLO con JSON válido con esta estructura exacta. IMPORTANTE: en "cuentas" incluye TODAS las cuentas del reporte con el nombre completo del acreedor/creditor:
+{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[{"acreedor":"NOMBRE DEL ACREEDOR/CREDITOR","tipo":"Credit Card","numero":"XXXX","balance":"$0","estado":"Open","buro":"Experian","negativo":false,"disputable":false,"razon_disputa":""}],"inquiries":[{"acreedor":"NOMBRE","fecha":"","buro":"","tipo":"hard"}],"errores_detectados":[{"tipo":"","descripcion":"","buro":"","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"","buros_involucrados":"","diferencia":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}
 
 CONTENIDO DEL REPORTE:
 ${textoReporte}`
