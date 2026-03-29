@@ -22,6 +22,7 @@ export default function ClientesPage() {
   const [ssnParcial, setSsnParcial] = useState('')
   const [mostrando, setMostrando] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [logoUrl, setLogoUrl] = useState('')
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -32,6 +33,8 @@ export default function ClientesPage() {
       .then(r => r.json())
       .then(d => { setClientes(d.data || []); setLoading(false) })
       .catch(() => setLoading(false))
+    fetch(API + '/branding', { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json()).then(d => { if (d.data?.logo_url) setLogoUrl(d.data.logo_url) }).catch(() => {})
   }, [])
 
   async function crear(e) {
@@ -67,7 +70,9 @@ export default function ClientesPage() {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'32px' }}>
         <button onClick={() => router.push('/dashboard')} style={{ background:'none', border:'none', color:'#00ff88', cursor:'pointer', fontSize:'14px' }}>← Dashboard</button>
         <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-          <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#00ff88,#0ea5e9)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'16px' }}>💳</div>
+          <div style={{ width:'32px', height:'32px', borderRadius:'8px', background:'linear-gradient(135deg,#00ff88,#0ea5e9)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
+            {logoUrl ? <img src={logoUrl} alt="Logo" style={{ width:'100%', height:'100%', objectFit:'cover' }} /> : <span style={{ fontSize:'16px' }}>💳</span>}
+          </div>
           <span style={{ fontSize:'13px', color:'#475569' }}>Credit Repair AI</span>
         </div>
       </div>

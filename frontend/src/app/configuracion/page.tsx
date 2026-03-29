@@ -55,36 +55,39 @@ export default function ConfiguracionPage() {
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:'#0a0f1e', color:'#f1f5f9', fontFamily:'sans-serif', padding:'40px' }}>
-      <button onClick={() => router.push('/dashboard')} style={{ background:'none', border:'none', color:'#6366f1', cursor:'pointer', marginBottom:'24px', fontSize:'14px' }}>Dashboard</button>
-      <h1 style={{ fontSize:'24px', marginBottom:'8px' }}>Configuracion de IA</h1>
-      <p style={{ color:'#64748b', fontSize:'14px', marginBottom:'32px' }}>Conecta tu API Key de OpenAI.</p>
+    <div style={{ minHeight:'100vh', background:'#030712', backgroundImage:'radial-gradient(ellipse at top, #0d1f0d 0%, #030712 70%)', color:'#e2e8f0', fontFamily:'sans-serif', padding:'40px' }}>
+      <button onClick={() => router.push('/dashboard')} style={{ background:'none', border:'none', color:'#00ff88', cursor:'pointer', marginBottom:'32px', fontSize:'14px' }}>← Dashboard</button>
+      <h1 style={{ fontSize:'26px', marginBottom:'8px', color:'#f1f5f9', fontWeight:'bold' }}>Configuracion de IA</h1>
+      <p style={{ color:'#475569', fontSize:'14px', marginBottom:'32px' }}>Conecta tu API Key de OpenAI.</p>
       {config && (
-        <div style={{ background:'rgba(34,197,94,0.1)', border:'1px solid #22c55e', borderRadius:'10px', padding:'12px 16px', marginBottom:'24px', fontSize:'13px' }}>
-          Estado: {config.estado_conexion} - Modelo: {config.modelo}
+        <div style={{ background:'rgba(0,255,136,0.06)', border:'1px solid rgba(0,255,136,0.3)', borderRadius:'10px', padding:'12px 16px', marginBottom:'24px', fontSize:'13px', color:'#00ff88' }}>
+          Estado: {config.estado_conexion} — Modelo: {config.modelo}
         </div>
       )}
-      <form onSubmit={guardar} style={{ maxWidth:'500px', display:'flex', flexDirection:'column', gap:'16px' }}>
-        <div>
-          <label style={{ display:'block', fontSize:'12px', color:'#94a3b8', marginBottom:'8px' }}>API KEY DE OPENAI</label>
-          <input type="password" placeholder="sk-..." value={apiKey} onChange={e => setApiKey(e.target.value)} required
-            style={{ width:'100%', padding:'12px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#f1f5f9', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div>
-          <label style={{ display:'block', fontSize:'12px', color:'#94a3b8', marginBottom:'8px' }}>MODELO</label>
-          <select value={modelo} onChange={e => setModelo(e.target.value)}
-            style={{ width:'100%', padding:'12px', background:'#1e293b', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#f1f5f9', fontSize:'14px', outline:'none' }}>
-            <option value="gpt-4o">GPT-4o (recomendado)</option>
-            <option value="gpt-4o-mini">GPT-4o Mini</option>
-          </select>
-        </div>
-        {mensaje && <p style={{ color:'#22c55e', fontSize:'13px', margin:0 }}>{mensaje}</p>}
-        {error && <p style={{ color:'#fca5a5', fontSize:'13px', margin:0 }}>{error}</p>}
-        <button type="submit" disabled={loading}
-          style={{ padding:'13px', background:'linear-gradient(135deg,#6366f1,#8b5cf6)', border:'none', borderRadius:'8px', color:'#fff', fontSize:'14px', fontWeight:'bold', cursor:'pointer' }}>
-          {loading ? 'Guardando...' : 'Guardar y probar conexion'}
-        </button>
-      </form>
+      <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid rgba(0,255,136,0.15)', borderRadius:'16px', padding:'28px', maxWidth:'500px', position:'relative', overflow:'hidden' }}>
+        <div style={{ position:'absolute', top:0, left:0, right:0, height:'2px', background:'linear-gradient(90deg,#00ff88,#0ea5e9,transparent)' }}></div>
+        <form onSubmit={guardar} style={{ display:'flex', flexDirection:'column', gap:'16px' }}>
+          <div>
+            <label style={{ display:'block', fontSize:'11px', color:'#00ff88', fontWeight:'bold', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>API Key de OpenAI</label>
+            <input type="password" placeholder="sk-..." value={apiKey} onChange={e => setApiKey(e.target.value)} required
+              style={{ width:'100%', padding:'12px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'14px', outline:'none', boxSizing:'border-box' }} />
+          </div>
+          <div>
+            <label style={{ display:'block', fontSize:'11px', color:'#00ff88', fontWeight:'bold', letterSpacing:'1px', textTransform:'uppercase', marginBottom:'8px' }}>Modelo</label>
+            <select value={modelo} onChange={e => setModelo(e.target.value)}
+              style={{ width:'100%', padding:'12px 14px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'8px', color:'#f1f5f9', fontSize:'14px', outline:'none' }}>
+              <option value="gpt-4o">GPT-4o (recomendado)</option>
+              <option value="gpt-4o-mini">GPT-4o Mini</option>
+            </select>
+          </div>
+          {mensaje && <p style={{ color:'#00ff88', fontSize:'13px', margin:0 }}>{mensaje}</p>}
+          {error && <p style={{ color:'#f87171', fontSize:'13px', margin:0 }}>{error}</p>}
+          <button type="submit" disabled={loading}
+            style={{ padding:'13px', background: loading ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'14px', fontWeight:'bold', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: loading ? 'none' : '0 0 20px rgba(0,255,136,0.3)' }}>
+            {loading ? 'Guardando...' : 'Guardar y probar conexion'}
+          </button>
+        </form>
+      </div>
     </div>
   )
 }
