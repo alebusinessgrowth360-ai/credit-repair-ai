@@ -157,7 +157,7 @@ router.post('/comparar', requireAuth, async (req: AuthRequest, res: Response) =>
       [cliente_id, reporte_base_id, reporte_comparado_id, JSON.stringify(resultado), resumen, progreso]
     )
 
-    res.status(201).json({ data: result.rows[0] || { resultado, resumen, progreso_general: progreso }, error: null })
+    res.status(201).json({ data: result.rows[0] || { resultado, resumen_cambios: resumen, progreso_general: progreso }, error: null })
   } catch (err: any) {
     res.status(500).json({ error: err.message })
   }
