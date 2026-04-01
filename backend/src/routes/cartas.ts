@@ -24,22 +24,68 @@ router.post('/generar', requireAuth, async (req: AuthRequest, res: Response) => 
     if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
     const c = cliente.rows[0]
     const openai = await getOpenAI(usuarioId)
-    const prompt = `Write a professional credit dispute letter in English for:
-Cliente: ${c.nombre_completo}
-Direccion: ${c.direccion || ''}, ${c.ciudad || ''}, ${c.estado || ''} ${c.zip || ''}
-Tipo de carta: ${tipo_carta}
-Destinatario: ${destinatario}
-Error a disputar: ${JSON.stringify(error_detectado || {})}
-Ley aplicable: ${ley_aplicada || 'FCRA'}
-Fecha: ${new Date().toLocaleDateString('es-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-The letter must be formal, professional, personalized and ready to send. Incluye: fecha, destinatario, detalle del problema, solicitud formal de investigacion o correccion, referencia a la ley aplicable y cierre profesional con espacio para firma.`
+    const errorDetalle = error_detectado || {}
+    const prompt = `You are an expert credit repair attorney writing a highly specific, individualized dispute letter that will bypass e-OSCAR automated rejection filters and comply with Metro 2 credit reporting standards.
+
+CONSUMER INFORMATION:
+- Full Name: ${c.nombre_completo}
+- Address: ${c.direccion || '[ADDRESS]'}, ${c.ciudad || '[CITY]'}, ${c.estado || '[STATE]'} ${c.zip || '[ZIP]'}
+- Date of Birth: ${c.fecha_nacimiento ? new Date(c.fecha_nacimiento).toLocaleDateString('en-US') : '[DOB]'}
+- SSN Last 4: ${c.ssn_parcial || 'XXXX'}
+
+DISPUTE DETAILS:
+- Bureau / Creditor: ${destinatario}
+- Dispute Type: ${tipo_carta.replace(/_/g, ' ')}
+- Applicable Law: ${ley_aplicada || 'FCRA'}
+- Error Context: ${JSON.stringify(errorDetalle)}
+- Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+
+CRITICAL REQUIREMENTS — the letter MUST follow ALL of these to pass e-OSCAR and Metro 2 filters:
+
+1. NEVER use generic/template phrases that trigger automatic rejection:
+   - Do NOT write "I do not recognize this account" or "this is not mine" without specific facts
+   - Do NOT use mass-dispute language or boilerplate
+   - Do NOT make frivolous claims without supporting detail
+
+2. BE HIGHLY SPECIFIC — include all known details:
+   - Exact account number (use what is in the error context, mask with XXXX if needed)
+   - Specific dates (open date, last payment, date of first delinquency)
+   - Specific dollar amounts reported
+   - Which Metro 2 data fields are incorrect (e.g., Field 4B Balance Amount, Field 4D Account Status, Field 6 Payment History Profile, Field 7A Special Comment Code)
+
+3. CITE SPECIFIC FCRA SECTIONS:
+   - §611(a)(1) — right to investigation within 30 days
+   - §611(a)(7) — right to method of verification
+   - §623(a)(2) — furnisher duty to correct inaccurate information
+   - §605(a) — obsolescence rules if applicable
+   - §623(b) — duty of furnishers upon notice of dispute
+
+4. REQUEST SPECIFIC ACTIONS (not just "remove" or "correct"):
+   - Request the full Method of Verification used (per FCRA §611(a)(7))
+   - Request the name, address and phone number of the original data furnisher
+   - Request all Metro 2 fields associated with this tradeline
+   - State specific Metro 2 compliance violations if applicable
+   - Set a clear 30-day deadline per FCRA §611(a)(1)
+
+5. STRUCTURE:
+   - Formal business letter format with sender address, date, recipient address
+   - Subject line referencing specific account
+   - Opening with consumer's specific situation (NOT generic)
+   - Body with numbered specific disputes referencing Metro 2 fields
+   - Closing demand with legal consequences of non-compliance
+   - Signature block with "Under penalty of perjury" declaration
+   - Enclosures list (ID copy, proof of address, supporting documents)
+
+Write the complete letter now. Make it individualized, specific, and legally precise.`
+
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'You are a credit repair expert. Write professional dispute letters in English.' },
+        { role: 'system', content: 'You are a senior credit repair attorney specializing in FCRA litigation. You write highly effective, legally precise dispute letters that pass e-OSCAR automated filters by being specific, factual, and Metro 2 compliant. Never write generic template letters.' },
         { role: 'user', content: prompt }
       ],
-      temperature: 0.3
+      temperature: 0.2,
+      max_tokens: 2000
     })
     const contenido = response.choices[0].message.content || 'Carta generada'
     const result = await pool.query(
