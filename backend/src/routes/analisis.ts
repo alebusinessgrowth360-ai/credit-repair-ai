@@ -105,10 +105,14 @@ IMPORTANTE:
 - No actúes como abogado.
 - No generes cartas.
 
-REGLAS CRÍTICAS para clasificar cuentas:
-- negativo: true si el estado es Collection, Charge Off, Late, Derogatory, Past Due, In Collections, Sent to Collections, Transferred to Collections, o cualquier variante negativa
-- tipo_negativo: "collection" si es una cuenta en colección o transferida a agencia de cobros; "charge_off" si está como Charge Off; "late" si tiene pagos tardíos; "derogatory" para otras negativas; "" si es positiva
+REGLAS CRÍTICAS para clasificar cuentas — LEER MUY CUIDADOSAMENTE:
+- El campo "Current Payment Status" en el PDF indica el estado real de la cuenta. Úsalo como valor de "estado".
+- Si "Current Payment Status" dice "Collection/Charge-off", "Collection", "Charge-off", "Charge Off", "CO", o cualquier variante: negativo=true, marca tipo_negativo correcto.
+- Si "Payment Status" o "Account Status" dice algo negativo (Late, Past Due, Derogatory, 30/60/90/120 days): negativo=true.
+- negativo: true si el estado es Collection, Charge Off, Late, Derogatory, Past Due, In Collections, Sent to Collections, Transferred to Collections, 30-180 days late, o cualquier variante negativa
+- tipo_negativo: "collection" si Collection o transferida a cobros; "charge_off" si Charge Off/CO; "late" si tiene pagos tardíos; "derogatory" para otras negativas; "" si es positiva
 - disputable: true si es negativa, tiene errores, o aparece en colección
+- NUNCA ignores "Current Payment Status" — es el campo más importante para detectar cuentas negativas
 - Marca TODAS las collections y charge-offs con negativo:true sin excepción
 
 Responde SOLO con JSON válido con esta estructura exacta. IMPORTANTE: en "cuentas" incluye TODAS las cuentas con nombre completo del acreedor y tipo_negativo:
