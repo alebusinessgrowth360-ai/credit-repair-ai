@@ -375,32 +375,47 @@ export default function AnalisisPage() {
                 </tr>
               </thead>
               <tbody>
-                {cuentas.map((c: any, i: number) => (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: c.negativo ? 'rgba(239,68,68,0.02)' : 'transparent' }}>
-                    <td style={{ padding: '9px 10px', color: '#f1f5f9', fontWeight: c.negativo ? '600' : '400' }}>{c.acreedor || '—'}</td>
+                {cuentas.map((c: any, i: number) => {
+                  const estadoLower = (c.estado || '').toLowerCase()
+                  const tipoLower = (c.tipo || '').toLowerCase()
+                  const esColeccion = c.tipo_negativo === 'collection' || estadoLower.includes('collection') || estadoLower.includes('collections') || tipoLower.includes('collection')
+                  const esChargeOff = c.tipo_negativo === 'charge_off' || estadoLower.includes('charge off') || estadoLower.includes('charge-off') || estadoLower.includes('chargeoff')
+                  const esNegativo = c.negativo || esColeccion || esChargeOff || estadoLower.includes('derogatory') || estadoLower.includes('past due') || estadoLower.includes('late')
+                  const bgColor = esColeccion ? 'rgba(239,68,68,0.08)' : esChargeOff ? 'rgba(239,68,68,0.05)' : 'transparent'
+                  const borderLeft = esColeccion ? '3px solid #ef4444' : esChargeOff ? '3px solid #f97316' : '3px solid transparent'
+                  const statusBg = esColeccion ? 'rgba(239,68,68,0.2)' : esChargeOff ? 'rgba(249,115,22,0.15)' : esNegativo ? 'rgba(239,68,68,0.1)' : 'rgba(0,255,136,0.1)'
+                  const statusColor = esColeccion ? '#ef4444' : esChargeOff ? '#f97316' : esNegativo ? '#f87171' : '#00ff88'
+                  return (
+                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: bgColor, borderLeft }}>
+                    <td style={{ padding: '9px 10px', color: esNegativo ? '#fca5a5' : '#f1f5f9', fontWeight: esNegativo ? '700' : '400' }}>
+                      {esColeccion && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>COLLECTION</span>}
+                      {esChargeOff && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>CHARGE OFF</span>}
+                      {c.acreedor || '—'}
+                    </td>
                     <td style={{ padding: '9px 10px', color: '#94a3b8' }}>{c.tipo || '—'}</td>
-                    <td style={{ padding: '9px 10px', color: c.negativo ? '#ef4444' : '#94a3b8' }}>{c.balance || '—'}</td>
+                    <td style={{ padding: '9px 10px', color: esNegativo ? '#ef4444' : '#94a3b8', fontWeight: esNegativo ? '600' : '400' }}>{c.balance || '—'}</td>
                     <td style={{ padding: '9px 10px' }}>
-                      <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '20px', background: c.negativo ? 'rgba(239,68,68,0.15)' : 'rgba(0,255,136,0.1)', color: c.negativo ? '#ef4444' : '#00ff88' }}>
+                      <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '20px', background: statusBg, color: statusColor, fontWeight: esColeccion ? 'bold' : 'normal' }}>
                         {c.estado || '—'}
                       </span>
                     </td>
                     <td style={{ padding: '9px 10px', color: '#38bdf8', fontSize: '11px' }}>{c.buro || '—'}</td>
                     <td style={{ padding: '9px 10px' }}>
-                      {c.disputable ? <span style={{ color: '#f59e0b', fontSize: '11px' }}>⚠ {c.razon_disputa || 'Yes'}</span> : <span style={{ color: '#475569', fontSize: '11px' }}>—</span>}
+                      {(c.disputable || esColeccion || esChargeOff) ? <span style={{ color: '#f59e0b', fontSize: '11px' }}>⚠ {c.razon_disputa || (esColeccion ? 'Collection account' : esChargeOff ? 'Charge-off' : 'Yes')}</span> : <span style={{ color: '#475569', fontSize: '11px' }}>—</span>}
                     </td>
                     <td className="no-print" style={{ padding: '9px 10px' }}>
-                      {c.disputable && (
+                      {(c.disputable || esColeccion || esChargeOff) && (
                         <button
-                          onClick={() => generarCarta(inferTipoCarta(c.tipo || ''), c.buro || 'Experian', 'FCRA', c)}
+                          onClick={() => generarCarta(esColeccion ? 'carta_coleccion' : inferTipoCarta(c.tipo || ''), c.buro || 'Experian', esColeccion ? 'FDCPA' : 'FCRA', c)}
                           disabled={!!generando}
-                          style={{ padding: '3px 9px', background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '5px', color: '#00ff88', fontSize: '10px', cursor: 'pointer' }}>
+                          style={{ padding: '3px 9px', background: esColeccion ? 'rgba(239,68,68,0.15)' : 'rgba(0,255,136,0.1)', border: `1px solid ${esColeccion ? 'rgba(239,68,68,0.4)' : 'rgba(0,255,136,0.3)'}`, borderRadius: '5px', color: esColeccion ? '#ef4444' : '#00ff88', fontSize: '10px', cursor: 'pointer' }}>
                           Draft
                         </button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
