@@ -263,14 +263,19 @@ export default function AnalisisPage() {
           {erroresAlta.length > 0 && <span style={{ fontSize: '10px', fontWeight: 'bold', padding: '3px 10px', borderRadius: '20px', background: 'rgba(239,68,68,0.15)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>⚠ {erroresAlta.length} HIGH PRIORITY</span>}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(100px,1fr))', gap: '8px' }}>
-          {[
-            { label: 'Total Accounts', val: rg.total_cuentas, color: '#e2e8f0' },
-            { label: 'Positive', val: rg.cuentas_positivas, color: '#00ff88' },
-            { label: 'Negative', val: rg.cuentas_negativas, color: '#ef4444' },
-            { label: 'Collections', val: rg.collections, color: '#ef4444' },
-            { label: 'Charge-offs', val: rg.charge_offs, color: '#ef4444' },
-            { label: 'Hard Inquiries', val: rg.hard_inquiries, color: '#f59e0b' },
-          ].map(m => (
+          {(() => {
+            const colCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'collection' || e.includes('collection') }).length
+            const coCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'charge_off' || e.includes('charge off') || e.includes('charge-off') }).length
+            const negCount = cuentas.filter((c: any) => c.negativo || (c.tipo_negativo && c.tipo_negativo !== '')).length
+            return [
+              { label: 'Total Accounts', val: cuentas.length || rg.total_cuentas || 0, color: '#e2e8f0' },
+              { label: 'Positive', val: (cuentas.length || rg.total_cuentas || 0) - negCount || rg.cuentas_positivas || 0, color: '#00ff88' },
+              { label: 'Negative', val: negCount || rg.cuentas_negativas || 0, color: '#ef4444' },
+              { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
+              { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
+              { label: 'Hard Inquiries', val: inquiries.filter((q: any) => q.tipo === 'hard').length || rg.hard_inquiries || 0, color: '#f59e0b' },
+            ]
+          })().map(m => (
             <div key={m.label} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
               <div style={{ fontSize: '22px', fontWeight: 'bold', color: m.color }}>{m.val ?? 0}</div>
               <div style={{ fontSize: '9px', color: '#475569', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{m.label}</div>
