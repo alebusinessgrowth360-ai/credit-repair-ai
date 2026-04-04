@@ -46,6 +46,7 @@ export default function DashboardPage() {
   const links = [
     { href:'/clientes', label:'Clientes', icon:'👥', desc:'Administra tus clientes' },
     { href:'/disputas', label:'Disputas', icon:'📋', desc:'Seguimiento de disputas' },
+    { href:'/rapid-rescore', label:'Rapid Rescore', icon:'⚡', desc:'Calculadora de puntaje' },
     { href:'/branding', label:'Branding', icon:'🎨', desc:'Personaliza tus documentos' },
     { href:'/configuracion', label:'Config. IA', icon:'⚙️', desc:'Configura tu API Key' },
   ]
