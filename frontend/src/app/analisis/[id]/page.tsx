@@ -72,17 +72,35 @@ export default function AnalisisPage() {
   const [tipoLetraSeleccionado, setTipoLetraSeleccionado] = useState('carta_cuenta_no_reconocida')
   const [generandoTodas, setGenerandoTodas] = useState(false)
   const [progresoCarta, setProgresoCarta] = useState('')
+  const [rescores, setRescores] = useState<any[]>([])
+  const [showRescoreForm, setShowRescoreForm] = useState(false)
+  const [rescoreForm, setRescoreForm] = useState({ banco: '', numero_cuenta: '', tipo_cuenta: 'Collection', balance: '', limite_credito: '', accion: 'Pay in Full', score_actual: '' })
+  const [calculandoRescore, setCalculandoRescore] = useState<'ia'|'formula'|null>(null)
+  const [rescoreError, setRescoreError] = useState('')
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
   useEffect(() => {
     const token = getToken()
     if (!token || !id) return
+    // Restore from session cache instantly
+    const cA = sessionStorage.getItem('analisis_' + id)
+    const cR = sessionStorage.getItem('reporte_' + id)
+    if (cA) setAnalisis(JSON.parse(cA))
+    if (cR) { const r = JSON.parse(cR); setClienteId(r.cliente_id); setReporte(r) }
+    // Fetch fresh data
     fetch(API + '/analizar/' + id, { headers: { Authorization: 'Bearer ' + token } })
-      .then(r => r.json()).then(d => { if (d.data) setAnalisis(d.data) })
+      .then(r => r.json()).then(d => { if (d.data) { setAnalisis(d.data); sessionStorage.setItem('analisis_' + id, JSON.stringify(d.data)) } })
     fetch(API + '/reportes/by-id/' + id, { headers: { Authorization: 'Bearer ' + token } })
-      .then(r => r.json()).then(d => { if (d.data) { setClienteId(d.data.cliente_id); setReporte(d.data) } }).catch(() => {})
+      .then(r => r.json()).then(d => { if (d.data) { setClienteId(d.data.cliente_id); setReporte(d.data); sessionStorage.setItem('reporte_' + id, JSON.stringify(d.data)) } }).catch(() => {})
   }, [id])
+
+  useEffect(() => {
+    if (!clienteId) return
+    const token = getToken()
+    fetch(API + '/rapid-rescore/cliente/' + clienteId, { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => r.json()).then(d => setRescores(d.data || [])).catch(() => {})
+  }, [clienteId])
 
   async function exportarEvaluacion() {
     setExportando(true); setError('')
@@ -169,6 +187,26 @@ export default function AnalisisPage() {
     finally { setGenerando(null) }
   }
 
+  async function calcularRescore(modo: 'ia' | 'formula') {
+    if (!rescoreForm.banco || !rescoreForm.score_actual) { setRescoreError('Bank and current score are required.'); return }
+    setCalculandoRescore(modo); setRescoreError('')
+    const token = getToken()
+    const endpoint = modo === 'ia' ? '/rapid-rescore/calcular' : '/rapid-rescore/calcular-rapido'
+    try {
+      const res = await fetch(API + endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ ...rescoreForm, cliente_id: clienteId, reporte_id: id, balance: parseFloat(rescoreForm.balance) || 0, limite_credito: parseFloat(rescoreForm.limite_credito) || 0, score_actual: parseInt(rescoreForm.score_actual) })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setRescores(prev => [data.data, ...prev])
+      setRescoreForm({ banco: '', numero_cuenta: '', tipo_cuenta: 'Collection', balance: '', limite_credito: '', accion: 'Pay in Full', score_actual: '' })
+      setShowRescoreForm(false)
+    } catch (err: any) { setRescoreError(err.message) }
+    finally { setCalculandoRescore(null) }
+  }
+
   if (!analisis) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#030712', color: '#00ff88', fontFamily: 'monospace', flexDirection: 'column', gap: '16px' }}>
       <div style={{ width: '40px', height: '40px', border: '2px solid #00ff88', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
@@ -230,7 +268,7 @@ export default function AnalisisPage() {
         <button onClick={() => router.back()} style={{ background: 'none', border: 'none', color: '#00ff88', cursor: 'pointer', fontSize: '13px' }}>← Back</button>
         <div>
           <h1 style={{ fontSize: '18px', margin: '0 0 2px', color: '#f1f5f9', fontWeight: 'bold', textAlign: 'center' }}>Credit Report Analysis</h1>
-          {reporte && <p style={{ fontSize: '11px', color: '#475569', margin: 0, textAlign: 'center' }}>{reporte.tipo_reporte} · {reporte.fecha_reporte}</p>}
+          {reporte && <p style={{ fontSize: '11px', color: '#475569', margin: 0, textAlign: 'center' }}><span style={{ color: '#94a3b8', fontWeight: '600' }}>{reporte.nombre_completo}</span> · {reporte.tipo_reporte} · {reporte.fecha_reporte}</p>}
         </div>
         <div style={{ display: 'flex', gap: '6px' }}>
           <button onClick={() => setModalDisputa(true)}
@@ -515,6 +553,101 @@ export default function AnalisisPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Rapid Rescore Section */}
+      <div className="print-section" style={{ marginTop: '16px', background: 'rgba(56,189,248,0.02)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '14px', padding: '20px', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg,#38bdf8,#a78bfa,transparent)' }}></div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '12px', margin: '0 0 3px', color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Rapid Rescore Analysis</h2>
+            <p style={{ fontSize: '11px', color: '#475569', margin: 0 }}>Estimate score impact per account before submitting a rescore request</p>
+          </div>
+          <button className="no-print" onClick={() => setShowRescoreForm(f => !f)}
+            style={{ padding: '7px 14px', background: showRescoreForm ? 'rgba(56,189,248,0.2)' : 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: '8px', color: '#38bdf8', fontSize: '11px', fontWeight: 'bold', cursor: 'pointer' }}>
+            {showRescoreForm ? '✕ Cancel' : '+ Add Account'}
+          </button>
+        </div>
+
+        {/* Form */}
+        {showRescoreForm && (
+          <div style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+            {rescoreError && <p style={{ color: '#f87171', fontSize: '12px', margin: '0 0 10px' }}>{rescoreError}</p>}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: '10px', marginBottom: '12px' }}>
+              {[
+                { label: 'Current Score *', key: 'score_actual', type: 'number', placeholder: 'e.g. 580' },
+                { label: 'Bank / Creditor *', key: 'banco', type: 'text', placeholder: 'e.g. Capital One' },
+                { label: 'Account # (optional)', key: 'numero_cuenta', type: 'text', placeholder: 'XXXX-XXXX' },
+                { label: 'Balance ($)', key: 'balance', type: 'number', placeholder: '0.00' },
+                { label: 'Credit Limit ($)', key: 'limite_credito', type: 'number', placeholder: '0.00' },
+              ].map(f => (
+                <div key={f.key}>
+                  <label style={{ display: 'block', fontSize: '10px', color: '#38bdf8', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>{f.label}</label>
+                  <input type={f.type} placeholder={f.placeholder} value={(rescoreForm as any)[f.key]}
+                    onChange={e => setRescoreForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    style={{ width: '100%', padding: '9px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '7px', color: '#f1f5f9', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
+              ))}
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#38bdf8', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>Account Type</label>
+                <select value={rescoreForm.tipo_cuenta} onChange={e => setRescoreForm(p => ({ ...p, tipo_cuenta: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', background: '#0a0f1e', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '7px', color: '#f1f5f9', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}>
+                  {['Collection','Charge-Off','Credit Card','Auto Loan','Student Loan','Medical Collection','Late Payment','Mortgage','Personal Loan','Other'].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '10px', color: '#38bdf8', fontWeight: 'bold', letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '5px' }}>Proposed Action</label>
+                <select value={rescoreForm.accion} onChange={e => setRescoreForm(p => ({ ...p, accion: e.target.value }))}
+                  style={{ width: '100%', padding: '9px 12px', background: '#0a0f1e', border: '1px solid rgba(56,189,248,0.2)', borderRadius: '7px', color: '#f1f5f9', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}>
+                  {['Pay in Full','Settle Account','Remove / Delete','Pay for Delete','Goodwill Deletion','Reduce Balance','Dispute & Remove'].map(a => <option key={a}>{a}</option>)}
+                </select>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button onClick={() => calcularRescore('formula')} disabled={!!calculandoRescore}
+                style={{ flex: 1, padding: '10px', background: 'rgba(56,189,248,0.1)', border: '1px solid rgba(56,189,248,0.4)', borderRadius: '8px', color: '#38bdf8', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {calculandoRescore === 'formula' ? 'Calculating...' : '⚡ Quick Calculate'}
+              </button>
+              <button onClick={() => calcularRescore('ia')} disabled={!!calculandoRescore}
+                style={{ flex: 1, padding: '10px', background: calculandoRescore === 'ia' ? 'rgba(0,255,136,0.1)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border: 'none', borderRadius: '8px', color: '#030712', fontSize: '12px', fontWeight: 'bold', cursor: 'pointer' }}>
+                {calculandoRescore === 'ia' ? 'AI Analyzing...' : '🤖 Calculate with AI'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Results list */}
+        {rescores.length === 0 && !showRescoreForm && (
+          <p style={{ color: '#475569', fontSize: '12px', margin: 0, textAlign: 'center', padding: '20px 0' }}>No rapid rescore calculations yet. Click "+ Add Account" to start.</p>
+        )}
+        {rescores.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {rescores.map((rs: any, i: number) => {
+              const impColor = rs.impacto_puntos >= 60 ? '#00ff88' : rs.impacto_puntos >= 30 ? '#f59e0b' : '#94a3b8'
+              return (
+                <div key={rs.id || i} style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${impColor}22`, borderRadius: '10px', padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#f1f5f9' }}>{rs.banco}</span>
+                      {rs.numero_cuenta && <span style={{ fontSize: '11px', color: '#64748b', marginLeft: '8px' }}>#{rs.numero_cuenta}</span>}
+                      <span style={{ fontSize: '10px', color: '#475569', marginLeft: '8px' }}>{rs.tipo_cuenta} · {rs.accion}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>{rs.score_actual}</span>
+                      <span style={{ fontSize: '11px', color: '#475569' }}>→</span>
+                      <span style={{ fontSize: '16px', fontWeight: 'bold', color: impColor }}>{rs.score_estimado}</span>
+                      <span style={{ fontSize: '11px', fontWeight: 'bold', padding: '2px 8px', borderRadius: '20px', background: impColor + '20', color: impColor, border: `1px solid ${impColor}44` }}>+{rs.impacto_puntos} pts</span>
+                      <span style={{ fontSize: '9px', padding: '2px 7px', borderRadius: '20px', background: 'rgba(255,255,255,0.05)', color: '#64748b' }}>{rs.modo === 'ia' ? 'AI' : 'Formula'}</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#64748b', margin: '0 0 4px' }}>{rs.explicacion}</p>
+                  {rs.recomendacion && <p style={{ fontSize: '11px', color: '#a78bfa', margin: 0 }}>Rec: {rs.recomendacion}</p>}
+                  {rs.tiempo_estimado && <p style={{ fontSize: '10px', color: '#475569', margin: '4px 0 0' }}>Timeline: {rs.tiempo_estimado}</p>}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
