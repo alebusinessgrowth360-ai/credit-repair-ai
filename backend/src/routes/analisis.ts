@@ -88,35 +88,38 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
 
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const pdfData = await pdfParse(pdfBuffer)
-    const textoReporte = pdfData.text.slice(0, 12000)
+    const textoReporte = pdfData.text.slice(0, 30000)
 
     const openai = await getOpenAI(usuarioId)
-    const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales de protección al consumidor y crédito.
+    const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
 
-Tu tarea es analizar el siguiente reporte de crédito completo y generar una evaluación total, clara, profesional y estructurada.
+Analiza el reporte de crédito completo que aparece al final y genera una evaluación exhaustiva. Sigue estas reglas sin excepción:
 
-IMPORTANTE:
-- Analiza el reporte completo.
-- Identifica el buró de crédito (Experian, Equifax, TransUnion) para cada cuenta, inquiry o dato cuando sea posible.
-- Compara la misma cuenta entre burós si aparece en más de uno.
-- Detecta inconsistencias entre burós.
-- Explica cada error en lenguaje claro.
-- Asocia cada hallazgo con la ley o principio aplicable (FCRA, FDCPA, FACTA).
-- No actúes como abogado.
-- No generes cartas.
+REGLAS DE EXTRACCIÓN:
+1. Incluye TODAS las cuentas del reporte — no omitas ninguna, sin importar si son positivas o negativas.
+2. Para cada cuenta extrae: nombre completo del acreedor, tipo de cuenta, número (últimos 4 dígitos), balance, límite de crédito, estado actual, buró que lo reporta.
+3. El campo "Current Payment Status" en el PDF es el estado real de la cuenta — úsalo siempre.
+4. Extrae TODOS los hard inquiries con fecha y empresa.
+5. Si el mismo acreedor aparece en múltiples burós con datos diferentes, registra la inconsistencia.
 
-REGLAS CRÍTICAS para clasificar cuentas — LEER MUY CUIDADOSAMENTE:
-- El campo "Current Payment Status" en el PDF indica el estado real de la cuenta. Úsalo como valor de "estado".
-- Si "Current Payment Status" dice "Collection/Charge-off", "Collection", "Charge-off", "Charge Off", "CO", o cualquier variante: negativo=true, marca tipo_negativo correcto.
-- Si "Payment Status" o "Account Status" dice algo negativo (Late, Past Due, Derogatory, 30/60/90/120 days): negativo=true.
-- negativo: true si el estado es Collection, Charge Off, Late, Derogatory, Past Due, In Collections, Sent to Collections, Transferred to Collections, 30-180 days late, o cualquier variante negativa
-- tipo_negativo: "collection" si Collection o transferida a cobros; "charge_off" si Charge Off/CO; "late" si tiene pagos tardíos; "derogatory" para otras negativas; "" si es positiva
-- disputable: true si es negativa, tiene errores, o aparece en colección
-- NUNCA ignores "Current Payment Status" — es el campo más importante para detectar cuentas negativas
-- Marca TODAS las collections y charge-offs con negativo:true sin excepción
+REGLAS DE CLASIFICACIÓN (CRÍTICAS):
+- negativo=true si el estado contiene: Collection, Charge Off, CO, Late, Past Due, Derogatory, 30/60/90/120 days, Transferred to Collections, Sent to Collections, o cualquier variante negativa.
+- tipo_negativo: "collection" para cuentas en cobros; "charge_off" para charge-off/CO; "late" para pagos tardíos; "derogatory" para otras negativas; "" para cuentas positivas.
+- disputable=true si la cuenta es negativa, tiene datos inconsistentes, o aparece como collection/charge-off.
+- Todas las collections y charge-offs DEBEN tener negativo=true y el tipo_negativo correcto.
 
-Responde SOLO con JSON válido con esta estructura exacta. IMPORTANTE: en "cuentas" incluye TODAS las cuentas con nombre completo del acreedor y tipo_negativo:
-{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","direcciones_actuales":[],"empleadores":[]},"cuentas":[{"acreedor":"NOMBRE COMPLETO DEL ACREEDOR","tipo":"Credit Card","numero":"XXXX","balance":"$0","estado":"Collection","buro":"Experian","negativo":true,"tipo_negativo":"collection","disputable":true,"razon_disputa":"Account in collections"}],"inquiries":[{"acreedor":"NOMBRE","fecha":"","buro":"","tipo":"hard"}],"errores_detectados":[{"tipo":"","descripcion":"","buro":"","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"","buros_involucrados":"","diferencia":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}
+ERRORES A DETECTAR:
+- Cuentas no reconocidas o duplicadas
+- Balances incorrectos o límites que no coinciden entre burós
+- Fechas de apertura o cierre incorrectas
+- Personal information errors (nombre mal escrito, direcciones desconocidas)
+- Hard inquiries no autorizados
+- Collection accounts que exceden el período de reporte (7 años bajo FCRA §605)
+- Charge-offs reportados más de 7 años
+- Inconsistencias entre burós en el mismo acreedor
+
+Responde SOLO con JSON válido con esta estructura exacta:
+{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","ssn_parcial":"","fecha_nacimiento":"","direcciones_actuales":[],"direcciones_anteriores":[],"empleadores":[]},"cuentas":[{"acreedor":"NOMBRE COMPLETO","tipo":"Credit Card","numero":"XXXX","balance":"$0.00","limite_credito":"$0.00","estado":"As Agreed","fecha_apertura":"","buro":"Experian","negativo":false,"tipo_negativo":"","disputable":false,"razon_disputa":""}],"inquiries":[{"acreedor":"NOMBRE","fecha":"MM/YYYY","buro":"Experian","tipo":"hard"}],"errores_detectados":[{"tipo":"Nombre del error","descripcion":"Descripción clara del error y por qué es disputable","buro":"Experian","cuenta_relacionada":"NOMBRE ACREEDOR","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"Descripción del elemento inconsistente","buros_involucrados":"Experian, Equifax","diferencia":"Descripción de la diferencia exacta","prioridad":"alta"}],"recomendaciones":[{"tipo":"Tipo de acción","descripcion":"Descripción detallada de la acción recomendada","ley_aplicable":"FCRA","prioridad":1}]}
 
 CONTENIDO DEL REPORTE:
 ${textoReporte}`
@@ -124,12 +127,12 @@ ${textoReporte}`
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'Eres un experto en reparacion de credito. Analiza reportes de credito y detecta errores disputables. Responde solo con JSON valido.' },
-        { role: 'user', content: prompt + '\n\nCONTENIDO DEL REPORTE:\n' + textoReporte }
+        { role: 'system', content: 'Eres un experto en reparacion de credito en Estados Unidos. Analiza reportes completos y detecta todos los errores disputables. Responde solo con JSON valido, sin texto adicional.' },
+        { role: 'user', content: prompt }
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.2,
-      max_tokens: 4000
+      temperature: 0.1,
+      max_tokens: 8000
     })
 
     const contenido = response.choices[0].message.content
