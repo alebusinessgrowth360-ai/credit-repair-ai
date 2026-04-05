@@ -23,6 +23,8 @@ export default function ClientesPage() {
   const [mostrando, setMostrando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [logoUrl, setLogoUrl] = useState('')
+  const [confirmDelete, setConfirmDelete] = useState<any>(null)
+  const [borrando, setBorrando] = useState(false)
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -55,6 +57,16 @@ export default function ClientesPage() {
     setGuardando(false)
   }
 
+  async function borrarCliente() {
+    if (!confirmDelete) return
+    setBorrando(true)
+    const token = getToken()
+    const res = await fetch(API + '/clientes/' + confirmDelete.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
+    if (res.ok) setClientes((prev: any[]) => prev.filter((c: any) => c.id !== confirmDelete.id))
+    setConfirmDelete(null)
+    setBorrando(false)
+  }
+
   const estadoColor = { activo:'#00ff88', en_progreso:'#f59e0b', pendiente:'#94a3b8', cerrado:'#475569' }
 
   if (loading) return (
@@ -65,6 +77,26 @@ export default function ClientesPage() {
 
   return (
     <div style={{ minHeight:'100vh', background:'#030712', backgroundImage:'radial-gradient(ellipse at top, #0d1f0d 0%, #030712 70%)', color:'#e2e8f0', fontFamily:'sans-serif', padding:'40px' }}>
+
+      {/* Modal confirmación borrar */}
+      {confirmDelete && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'16px', padding:'28px', maxWidth:'420px', width:'100%' }}>
+            <h2 style={{ fontSize:'16px', color:'#f87171', margin:'0 0 10px' }}>Borrar cliente</h2>
+            <p style={{ fontSize:'13px', color:'#94a3b8', margin:'0 0 6px' }}>Vas a borrar permanentemente a:</p>
+            <p style={{ fontSize:'15px', fontWeight:'bold', color:'#f1f5f9', margin:'0 0 16px' }}>{confirmDelete.nombre_completo}</p>
+            <p style={{ fontSize:'12px', color:'#ef4444', margin:'0 0 24px' }}>Esto borrará también todos sus reportes, análisis, cartas y disputas. Esta acción no se puede deshacer.</p>
+            <div style={{ display:'flex', gap:'10px' }}>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex:1, padding:'10px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#94a3b8', fontSize:'13px', cursor:'pointer' }}>
+                Cancelar
+              </button>
+              <button onClick={borrarCliente} disabled={borrando} style={{ flex:1, padding:'10px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'13px', fontWeight:'bold', cursor:'pointer' }}>
+                {borrando ? 'Borrando...' : 'Sí, borrar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'32px' }}>
@@ -150,10 +182,14 @@ export default function ClientesPage() {
                   <div style={{ fontSize:'12px', color:'#475569' }}>{c.email || 'Sin email'} {c.telefono ? '· ' + c.telefono : ''}</div>
                 </div>
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                 <span style={{ fontSize:'11px', fontWeight:'bold', padding:'3px 12px', borderRadius:'20px', background: (estadoColor[c.estado_caso] || '#94a3b8') + '20', color: estadoColor[c.estado_caso] || '#94a3b8', border:`1px solid ${estadoColor[c.estado_caso] || '#94a3b8'}44` }}>
                   {c.estado_caso}
                 </span>
+                <button onClick={e => { e.stopPropagation(); setConfirmDelete(c) }}
+                  style={{ padding:'5px 10px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.25)', borderRadius:'7px', color:'#f87171', fontSize:'11px', cursor:'pointer' }}>
+                  Borrar
+                </button>
                 <span style={{ color:'#475569', fontSize:'16px' }}>→</span>
               </div>
             </div>
