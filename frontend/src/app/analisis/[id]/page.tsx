@@ -233,6 +233,7 @@ export default function AnalisisPage() {
           body { background: white !important; color: black !important; }
           button, .no-print { display: none !important; }
           .print-section { break-inside: avoid; }
+          .print-only { display: block !important; }
         }
       `}</style>
 
@@ -285,6 +286,14 @@ export default function AnalisisPage() {
           </button>
         </div>
       </div>
+
+      {/* Print-only client header */}
+      {reporte && (
+        <div style={{ display: 'none' }} className="print-only">
+          <h2 style={{ fontSize: '16px', margin: '0 0 4px', color: '#111' }}>{reporte.nombre_completo}</h2>
+          <p style={{ fontSize: '12px', color: '#555', margin: '0 0 20px' }}>{reporte.tipo_reporte} · {reporte.fecha_reporte}</p>
+        </div>
+      )}
 
       {/* Alerts */}
       {mensaje && <div className="no-print" style={{ padding: '10px 14px', background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '8px', marginBottom: '16px' }}><p style={{ color: '#00ff88', fontSize: '13px', margin: 0 }}>{mensaje}</p></div>}
