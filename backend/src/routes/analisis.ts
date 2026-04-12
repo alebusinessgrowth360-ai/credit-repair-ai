@@ -88,7 +88,9 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
 
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const pdfData = await pdfParse(pdfBuffer)
-    const textoReporte = pdfData.text.slice(0, 30000)
+    console.log('[ANALISIS] PDF text total chars:', pdfData.text.length)
+    const textoReporte = pdfData.text.slice(0, 60000)
+    console.log('[ANALISIS] Sending chars to AI:', textoReporte.length)
 
     const openai = await getOpenAI(usuarioId)
     const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
