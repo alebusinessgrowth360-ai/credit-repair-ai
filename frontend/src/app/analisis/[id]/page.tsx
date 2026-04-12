@@ -321,6 +321,7 @@ export default function AnalisisPage() {
               { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
               { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
               { label: 'Hard Inquiries', val: inquiries.filter((q: any) => q.tipo === 'hard').length || rg.hard_inquiries || 0, color: '#f59e0b' },
+              { label: 'Duplicates', val: (analisis.cuentas_duplicadas || []).length || rg.cuentas_duplicadas_detectadas || 0, color: '#f87171' },
             ]
           })().map(m => (
             <div key={m.label} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -443,6 +444,7 @@ export default function AnalisisPage() {
                       {esColeccion && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>COLLECTION</span>}
                       {esChargeOff && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>CHARGE OFF</span>}
                       {c.acreedor || '—'}
+                      {c.original_creditor && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Orig: {c.original_creditor}</div>}
                     </td>
                     <td style={{ padding: '9px 10px', color: '#94a3b8' }}>{c.tipo || '—'}</td>
                     <td style={{ padding: '9px 10px', color: esNegativo ? '#ef4444' : '#94a3b8', fontWeight: esNegativo ? '600' : '400' }}>{c.balance || '—'}</td>
@@ -471,6 +473,35 @@ export default function AnalisisPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* Cuentas Duplicadas */}
+      {(analisis.cuentas_duplicadas || []).length > 0 && (
+        <div className="print-section" style={{ background: 'rgba(239,68,68,0.05)', border: '2px solid rgba(239,68,68,0.4)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '12px', margin: '0 0 4px', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+            Duplicate Accounts Detected ({analisis.cuentas_duplicadas.length})
+          </h2>
+          <p style={{ fontSize: '11px', color: '#f87171', margin: '0 0 14px' }}>Same debt reported multiple times with different creditor names — highly disputable under FCRA.</p>
+          {analisis.cuentas_duplicadas.map((d: any, i: number) => (
+            <div key={i} style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '10px', padding: '14px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>Account 1</div>
+                  <div style={{ fontSize: '13px', color: '#fca5a5', fontWeight: 'bold' }}>{d.acreedor_1}</div>
+                  {d.numero_1 && <div style={{ fontSize: '11px', color: '#64748b' }}>#{d.numero_1} · {d.buro_1} · {d.balance_1}</div>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', color: '#ef4444', fontSize: '18px', fontWeight: 'bold' }}>≈</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '10px', color: '#64748b', textTransform: 'uppercase', marginBottom: '3px' }}>Account 2</div>
+                  <div style={{ fontSize: '13px', color: '#fca5a5', fontWeight: 'bold' }}>{d.acreedor_2}</div>
+                  {d.numero_2 && <div style={{ fontSize: '11px', color: '#64748b' }}>#{d.numero_2} · {d.buro_2} · {d.balance_2}</div>}
+                </div>
+              </div>
+              {d.original_creditor && <div style={{ fontSize: '11px', color: '#f87171', marginBottom: '6px' }}>Original Creditor: <strong>{d.original_creditor}</strong></div>}
+              <div style={{ fontSize: '11px', color: '#94a3b8' }}>{d.descripcion}</div>
+            </div>
+          ))}
         </div>
       )}
 

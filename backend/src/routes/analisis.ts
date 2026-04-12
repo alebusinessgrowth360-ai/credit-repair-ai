@@ -93,33 +93,48 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
     const openai = await getOpenAI(usuarioId)
     const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
 
-Analiza el reporte de crédito completo que aparece al final y genera una evaluación exhaustiva. Sigue estas reglas sin excepción:
+Analiza el reporte de crédito completo que aparece al final. Copia los datos EXACTAMENTE como aparecen en el reporte — no interpretes ni resumas. Sigue estas reglas sin excepción:
 
-REGLAS DE EXTRACCIÓN:
-1. Incluye TODAS las cuentas del reporte — no omitas ninguna, sin importar si son positivas o negativas.
-2. Para cada cuenta extrae: nombre completo del acreedor, tipo de cuenta, número (últimos 4 dígitos), balance, límite de crédito, estado actual, buró que lo reporta.
-3. El campo "Current Payment Status" en el PDF es el estado real de la cuenta — úsalo siempre.
-4. Extrae TODOS los hard inquiries con fecha y empresa.
-5. Si el mismo acreedor aparece en múltiples burós con datos diferentes, registra la inconsistencia.
+REGLAS DE EXTRACCIÓN (CRÍTICAS):
+1. Incluye ABSOLUTAMENTE TODAS las cuentas — positivas, negativas, cerradas, abiertas, collections, charge-offs. No omitas ninguna.
+2. Para cada cuenta extrae TODOS estos campos tal como aparecen en el reporte:
+   - acreedor: nombre exacto del creditor como está escrito
+   - original_creditor: nombre del "Original Creditor" o "Original Creditor Name" si existe (muy importante para collections)
+   - tipo: tipo de cuenta exacto (Credit Card, Auto Loan, Mortgage, Collection, Charge-Off, Student Loan, etc.)
+   - numero: número de cuenta (últimos 4 dígitos o como aparece)
+   - balance: balance actual exacto
+   - limite_credito: credit limit o high credit exacto
+   - estado: "Current Payment Status" exacto como aparece en el reporte
+   - fecha_apertura: fecha de apertura exacta
+   - fecha_cierre: fecha de cierre si existe
+   - fecha_ultimo_pago: last payment date si existe
+   - buro: cuál buró reporta esta cuenta (Experian, Equifax, TransUnion)
+3. Extrae TODOS los hard inquiries: empresa, fecha, buró.
+4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 
-REGLAS DE CLASIFICACIÓN (CRÍTICAS):
-- negativo=true si el estado contiene: Collection, Charge Off, CO, Late, Past Due, Derogatory, 30/60/90/120 days, Transferred to Collections, Sent to Collections, o cualquier variante negativa.
-- tipo_negativo: "collection" para cuentas en cobros; "charge_off" para charge-off/CO; "late" para pagos tardíos; "derogatory" para otras negativas; "" para cuentas positivas.
-- disputable=true si la cuenta es negativa, tiene datos inconsistentes, o aparece como collection/charge-off.
-- Todas las collections y charge-offs DEBEN tener negativo=true y el tipo_negativo correcto.
+DETECCIÓN DE CUENTAS DUPLICADAS (MUY IMPORTANTE):
+- Una cuenta duplicada ocurre cuando la MISMA deuda aparece dos veces con diferentes nombres. Ejemplos comunes:
+  * La cuenta original (charge-off) + una collection agency cobrando la misma deuda
+  * Dos collection agencies cobrando la misma deuda original
+  * La misma cuenta reportada dos veces con nombres ligeramente diferentes
+- Para detectarlas: compara el "Original Creditor" de cada collection con los acreedores de otras cuentas. Si coinciden, es duplicado.
+- Incluye CADA duplicado en el array "cuentas_duplicadas" Y también en "errores_detectados" con tipo "Cuenta Duplicada".
+
+REGLAS DE CLASIFICACIÓN:
+- negativo=true si el estado contiene: Collection, Charge Off, CO, Late, Past Due, Derogatory, 30/60/90/120 days, Transferred to Collections, o cualquier variante negativa.
+- tipo_negativo: "collection", "charge_off", "late", "derogatory", o "" para positivas.
+- disputable=true si es negativa, tiene inconsistencias, es duplicada, o excede 7 años.
 
 ERRORES A DETECTAR:
-- Cuentas no reconocidas o duplicadas
-- Balances incorrectos o límites que no coinciden entre burós
-- Fechas de apertura o cierre incorrectas
-- Personal information errors (nombre mal escrito, direcciones desconocidas)
+- Cuentas duplicadas (mismo original creditor, diferentes nombres)
+- Cuentas que exceden 7 años de reporte (FCRA §605)
+- Balances o límites diferentes entre burós para la misma cuenta
+- Datos personales incorrectos (nombre mal escrito, direcciones desconocidas)
 - Hard inquiries no autorizados
-- Collection accounts que exceden el período de reporte (7 años bajo FCRA §605)
-- Charge-offs reportados más de 7 años
-- Inconsistencias entre burós en el mismo acreedor
+- Fechas de apertura o cierre incorrectas entre burós
 
 Responde SOLO con JSON válido con esta estructura exacta:
-{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","ssn_parcial":"","fecha_nacimiento":"","direcciones_actuales":[],"direcciones_anteriores":[],"empleadores":[]},"cuentas":[{"acreedor":"NOMBRE COMPLETO","tipo":"Credit Card","numero":"XXXX","balance":"$0.00","limite_credito":"$0.00","estado":"As Agreed","fecha_apertura":"","buro":"Experian","negativo":false,"tipo_negativo":"","disputable":false,"razon_disputa":""}],"inquiries":[{"acreedor":"NOMBRE","fecha":"MM/YYYY","buro":"Experian","tipo":"hard"}],"errores_detectados":[{"tipo":"Nombre del error","descripcion":"Descripción clara del error y por qué es disputable","buro":"Experian","cuenta_relacionada":"NOMBRE ACREEDOR","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"Descripción del elemento inconsistente","buros_involucrados":"Experian, Equifax","diferencia":"Descripción de la diferencia exacta","prioridad":"alta"}],"recomendaciones":[{"tipo":"Tipo de acción","descripcion":"Descripción detallada de la acción recomendada","ley_aplicable":"FCRA","prioridad":1}]}
+{"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"cuentas_duplicadas_detectadas":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","ssn_parcial":"","fecha_nacimiento":"","direcciones_actuales":[],"direcciones_anteriores":[],"empleadores":[]},"cuentas":[{"acreedor":"NOMBRE EXACTO","original_creditor":"NOMBRE ORIGINAL O VACIO","tipo":"Credit Card","numero":"XXXX","balance":"$0.00","limite_credito":"$0.00","estado":"As Agreed","fecha_apertura":"","fecha_cierre":"","fecha_ultimo_pago":"","buro":"Experian","negativo":false,"tipo_negativo":"","disputable":false,"razon_disputa":""}],"cuentas_duplicadas":[{"acreedor_1":"NOMBRE 1","acreedor_2":"NOMBRE 2","original_creditor":"NOMBRE DEL ACREEDOR ORIGINAL","numero_1":"XXXX","numero_2":"XXXX","buro_1":"Experian","buro_2":"Equifax","balance_1":"$0.00","balance_2":"$0.00","descripcion":"Explicación de por qué son la misma deuda"}],"inquiries":[{"acreedor":"NOMBRE","fecha":"MM/YYYY","buro":"Experian","tipo":"hard"}],"errores_detectados":[{"tipo":"Nombre del error","descripcion":"Descripción clara del error y por qué es disputable","buro":"Experian","cuenta_relacionada":"NOMBRE ACREEDOR","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"Descripción del elemento inconsistente","buros_involucrados":"Experian, Equifax","diferencia":"Descripción de la diferencia exacta","prioridad":"alta"}],"recomendaciones":[{"tipo":"Tipo de acción","descripcion":"Descripción detallada de la acción recomendada","ley_aplicable":"FCRA","prioridad":1}]}
 
 CONTENIDO DEL REPORTE:
 ${textoReporte}`
