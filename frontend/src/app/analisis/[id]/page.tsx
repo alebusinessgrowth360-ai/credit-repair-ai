@@ -322,6 +322,7 @@ export default function AnalisisPage() {
               { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
               { label: 'Hard Inquiries', val: inquiries.filter((q: any) => q.tipo === 'hard').length || rg.hard_inquiries || 0, color: '#f59e0b' },
               { label: 'Duplicates', val: (analisis.cuentas_duplicadas || []).length || rg.cuentas_duplicadas_detectadas || 0, color: '#f87171' },
+              { label: 'Personal Issues', val: (analisis.inconsistencias_personales || []).length || rg.inconsistencias_personales_detectadas || 0, color: '#a78bfa' },
             ]
           })().map(m => (
             <div key={m.label} style={{ background: 'rgba(0,0,0,0.3)', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -414,6 +415,38 @@ export default function AnalisisPage() {
       )}
 
       {/* Accounts Table */}
+      {/* Personal Info Inconsistencies */}
+      {(analisis.inconsistencias_personales || []).length > 0 && (
+        <div className="print-section" style={{ background: 'rgba(167,139,250,0.05)', border: '2px solid rgba(167,139,250,0.35)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '12px', margin: '0 0 4px', color: '#a78bfa', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+            Personal Info Inconsistencies ({analisis.inconsistencias_personales.length})
+          </h2>
+          <p style={{ fontSize: '11px', color: '#c4b5fd', margin: '0 0 14px' }}>Names, addresses, or employers that differ between bureaus or appear suspicious — disputable under FCRA.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {analisis.inconsistencias_personales.map((item: any, i: number) => (
+              <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '10px 14px', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.2)', borderRadius: '8px' }}>
+                <span style={{ fontSize: '9px', fontWeight: 'bold', padding: '2px 7px', borderRadius: '3px', background: 'rgba(167,139,250,0.2)', color: '#a78bfa', textTransform: 'uppercase', marginTop: '1px', flexShrink: 0 }}>
+                  {item.tipo || 'info'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#e2e8f0', fontWeight: '600' }}>{item.valor_reportado || item.descripcion}</div>
+                  {item.valor_reportado && item.descripcion !== item.valor_reportado && <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>{item.descripcion}</div>}
+                  {item.buro && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>{item.buro}</div>}
+                </div>
+                {item.disputable && (
+                  <button className="no-print"
+                    onClick={() => generarCarta('carta_datos_personales', item.buro || 'Experian', 'FCRA', { acreedor: item.valor_reportado, tipo: item.tipo })}
+                    disabled={!!generando}
+                    style={{ padding: '3px 9px', background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.4)', borderRadius: '5px', color: '#a78bfa', fontSize: '10px', cursor: 'pointer', flexShrink: 0 }}>
+                    Dispute
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {cuentas.length > 0 && (
         <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
           <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Accounts ({cuentas.length})</h2>
