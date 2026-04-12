@@ -23,7 +23,11 @@ export default function VerPDFPage() {
       .then(r => r.json())
       .then(d => {
         if (d.data?.pdf_contenido) {
-          setPdfUrl('data:application/pdf;base64,' + d.data.pdf_contenido)
+          const binary = atob(d.data.pdf_contenido)
+          const bytes = new Uint8Array(binary.length)
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+          const blob = new Blob([bytes], { type: 'application/pdf' })
+          setPdfUrl(URL.createObjectURL(blob))
         } else {
           setError('No se encontró el PDF')
         }
