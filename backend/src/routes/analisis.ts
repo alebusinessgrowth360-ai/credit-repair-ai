@@ -89,7 +89,7 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
     const pdfBuffer = Buffer.from(pdfBase64, 'base64')
     const pdfData = await pdfParse(pdfBuffer)
     console.log('[ANALISIS] PDF text total chars:', pdfData.text.length)
-    const textoReporte = pdfData.text.slice(0, 60000)
+    const textoReporte = pdfData.text.slice(0, 90000)
     console.log('[ANALISIS] Sending chars to AI:', textoReporte.length)
 
     const openai = await getOpenAI(usuarioId)
