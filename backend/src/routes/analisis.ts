@@ -149,22 +149,24 @@ ${textoReporte}`
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
-        { role: 'system', content: 'Eres un experto en reparacion de credito en Estados Unidos. Analiza reportes completos y detecta todos los errores disputables. Responde solo con JSON valido, sin texto adicional.' },
+        { role: 'system', content: 'Eres un experto en reparacion de credito en Estados Unidos. Analiza reportes completos y detecta todos los errores disputables. Tu respuesta debe ser UNICAMENTE el objeto JSON solicitado, sin ningun texto antes ni despues, sin markdown, sin bloques de codigo.' },
         { role: 'user', content: prompt }
       ],
-      response_format: { type: 'json_object' },
       temperature: 0.1,
       max_tokens: 16000
     })
 
     const choice = response.choices[0]
     console.log('[ANALISIS] finish_reason:', choice.finish_reason, '| tokens:', response.usage)
-    console.log('[ANALISIS] content length:', choice.message.content?.length ?? 'NULL')
+    const raw = choice.message.content || ''
+    console.log('[ANALISIS] content length:', raw.length, '| refusal:', (choice.message as any).refusal ?? 'none')
     if (choice.finish_reason === 'length') throw new Error('El reporte es demasiado extenso. La IA no pudo completar el análisis. Intenta con un reporte más corto.')
-    if (choice.finish_reason === 'content_filter') throw new Error('La IA bloqueó el contenido por filtros de seguridad.')
-    const contenido = choice.message.content
-    if (!contenido) throw new Error(`La IA devolvió respuesta vacía. finish_reason: ${choice.finish_reason}`)
-    const analisisData = JSON.parse(contenido)
+    if (!raw) throw new Error(`La IA devolvió respuesta vacía. finish_reason: ${choice.finish_reason}`)
+
+    // Extract JSON — handles cases where model wraps in markdown code blocks
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) throw new Error('La IA no devolvió JSON válido. Intenta de nuevo.')
+    const analisisData = JSON.parse(jsonMatch[0])
 
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
     const result = await pool.query(
