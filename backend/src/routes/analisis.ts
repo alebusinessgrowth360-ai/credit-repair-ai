@@ -97,20 +97,30 @@ router.post('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response)
 
 Analiza el reporte de crédito completo que aparece al final. Copia los datos EXACTAMENTE como aparecen en el reporte — no interpretes ni resumas. Sigue estas reglas sin excepción:
 
+FORMATO DEL REPORTE — MUY IMPORTANTE:
+Muchos reportes de crédito (como Credit Hero Score, IdentityIQ, SmartCredit) muestran las cuentas en una tabla con 3 columnas: TransUnion | Equifax | Experian. Cuando el PDF se convierte a texto, estas columnas se aplanan en una sola secuencia lineal y el mismo acreedor puede aparecer 3 veces seguidas con datos ligeramente diferentes para cada buró.
+
+CÓMO MANEJAR ESTE FORMATO:
+- Si ves el mismo nombre de acreedor repetido 2 o 3 veces con diferentes balances, fechas o estados — es la misma cuenta reportada por diferentes burós.
+- Crea una entrada SEPARADA por cada buró. Si CAPITAL ONE aparece 3 veces, crea 3 entradas: una con buro="TransUnion", otra con buro="Equifax", otra con buro="Experian".
+- Para determinar a qué buró pertenece cada instancia, observa el orden: generalmente aparecen en el orden TransUnion → Equifax → Experian, o según los headers del reporte.
+- Si el texto muestra explícitamente secciones por buró (ej: "EXPERIAN" como header), usa esa sección para atribuir.
+- Si no puedes determinar el buró con certeza, usa el orden de aparición y los headers visibles.
+
 REGLAS DE EXTRACCIÓN (CRÍTICAS):
 1. Incluye ABSOLUTAMENTE TODAS las cuentas — positivas, negativas, cerradas, abiertas, collections, charge-offs. No omitas ninguna.
-2. Para cada cuenta extrae TODOS estos campos tal como aparecen en el reporte:
+2. Para cada entrada de cuenta (por buró) extrae:
    - acreedor: nombre exacto del creditor como está escrito
    - original_creditor: nombre del "Original Creditor" o "Original Creditor Name" si existe (muy importante para collections)
    - tipo: tipo de cuenta exacto (Credit Card, Auto Loan, Mortgage, Collection, Charge-Off, Student Loan, etc.)
    - numero: número de cuenta (últimos 4 dígitos o como aparece)
-   - balance: balance actual exacto
+   - balance: balance actual exacto para ESE buró
    - limite_credito: credit limit o high credit exacto
-   - estado: "Current Payment Status" exacto como aparece en el reporte
+   - estado: "Current Payment Status" exacto como aparece para ESE buró
    - fecha_apertura: fecha de apertura exacta
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
-   - buro: cuál buró reporta esta cuenta (Experian, Equifax, TransUnion)
+   - buro: Experian, Equifax, o TransUnion
 3. Extrae TODOS los hard inquiries: empresa, fecha, buró.
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
