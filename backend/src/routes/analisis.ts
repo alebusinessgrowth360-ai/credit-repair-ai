@@ -154,11 +154,13 @@ ${textoReporte}`
       ],
       response_format: { type: 'json_object' },
       temperature: 0.1,
-      max_tokens: 8000
+      max_tokens: 16000
     })
 
-    const contenido = response.choices[0].message.content
-    if (!contenido) throw new Error('Respuesta vacia de la IA')
+    const choice = response.choices[0]
+    if (choice.finish_reason === 'length') throw new Error('El reporte es demasiado extenso. La IA no pudo completar el análisis. Intenta con un reporte más corto.')
+    const contenido = choice.message.content
+    if (!contenido) throw new Error('La IA no devolvió respuesta. Verifica que tu API Key de OpenAI tenga crédito disponible.')
     const analisisData = JSON.parse(contenido)
 
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
