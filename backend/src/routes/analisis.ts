@@ -158,9 +158,12 @@ ${textoReporte}`
     })
 
     const choice = response.choices[0]
+    console.log('[ANALISIS] finish_reason:', choice.finish_reason, '| tokens:', response.usage)
+    console.log('[ANALISIS] content length:', choice.message.content?.length ?? 'NULL')
     if (choice.finish_reason === 'length') throw new Error('El reporte es demasiado extenso. La IA no pudo completar el análisis. Intenta con un reporte más corto.')
+    if (choice.finish_reason === 'content_filter') throw new Error('La IA bloqueó el contenido por filtros de seguridad.')
     const contenido = choice.message.content
-    if (!contenido) throw new Error('La IA no devolvió respuesta. Verifica que tu API Key de OpenAI tenga crédito disponible.')
+    if (!contenido) throw new Error(`La IA devolvió respuesta vacía. finish_reason: ${choice.finish_reason}`)
     const analisisData = JSON.parse(contenido)
 
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
