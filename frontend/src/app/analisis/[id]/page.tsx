@@ -299,6 +299,41 @@ export default function AnalisisPage() {
       {mensaje && <div className="no-print" style={{ padding: '10px 14px', background: 'rgba(0,255,136,0.1)', border: '1px solid rgba(0,255,136,0.3)', borderRadius: '8px', marginBottom: '16px' }}><p style={{ color: '#00ff88', fontSize: '13px', margin: 0 }}>{mensaje}</p></div>}
       {error && <div className="no-print" style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', marginBottom: '16px' }}><p style={{ color: '#f87171', fontSize: '13px', margin: 0 }}>{error}</p></div>}
 
+      {/* Credit Scores */}
+      {(() => {
+        const scores = rg.scores || analisis.scores || {}
+        const bureaus = [
+          { key: 'Experian', color: '#818cf8' },
+          { key: 'Equifax', color: '#f87171' },
+          { key: 'TransUnion', color: '#34d399' },
+        ]
+        const hasScores = bureaus.some(b => scores[b.key] && scores[b.key] > 0) || (scores.general && scores.general > 0)
+        if (!hasScores) return null
+        const scoreColor = (s: number) => s >= 740 ? '#00ff88' : s >= 670 ? '#f59e0b' : s >= 580 ? '#fb923c' : '#ef4444'
+        const scoreLabel = (s: number) => s >= 740 ? 'Excellent' : s >= 670 ? 'Good' : s >= 580 ? 'Fair' : 'Poor'
+        return (
+          <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '12px', margin: '0 0 16px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Credit Scores</h2>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              {scores.general > 0 && (
+                <div style={{ flex: 1, minWidth: '120px', background: 'rgba(0,0,0,0.4)', borderRadius: '12px', padding: '16px', textAlign: 'center', border: `2px solid ${scoreColor(scores.general)}44` }}>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '6px', textTransform: 'uppercase' }}>Overall</div>
+                  <div style={{ fontSize: '42px', fontWeight: 'bold', color: scoreColor(scores.general), lineHeight: 1 }}>{scores.general}</div>
+                  <div style={{ fontSize: '11px', color: scoreColor(scores.general), marginTop: '4px' }}>{scoreLabel(scores.general)}</div>
+                </div>
+              )}
+              {bureaus.map(b => scores[b.key] > 0 ? (
+                <div key={b.key} style={{ flex: 1, minWidth: '120px', background: 'rgba(0,0,0,0.4)', borderRadius: '12px', padding: '16px', textAlign: 'center', border: `1px solid ${b.color}33` }}>
+                  <div style={{ fontSize: '11px', color: b.color, marginBottom: '6px', fontWeight: '600' }}>{b.key}</div>
+                  <div style={{ fontSize: '42px', fontWeight: 'bold', color: scoreColor(scores[b.key]), lineHeight: 1 }}>{scores[b.key]}</div>
+                  <div style={{ fontSize: '11px', color: scoreColor(scores[b.key]), marginTop: '4px' }}>{scoreLabel(scores[b.key])}</div>
+                </div>
+              ) : null)}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Summary */}
       <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(0,255,136,0.15)', borderRadius: '14px', padding: '20px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg,#00ff88,#0ea5e9,transparent)' }}></div>
