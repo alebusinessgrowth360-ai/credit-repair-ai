@@ -356,7 +356,7 @@ export default function AnalisisPage() {
               { label: 'Negative', val: negCount || rg.cuentas_negativas || 0, color: '#ef4444' },
               { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
               { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
-              { label: 'Hard Inquiries', val: inquiries.filter((q: any) => q.tipo === 'hard').length || rg.hard_inquiries || 0, color: '#f59e0b' },
+              { label: 'Disp. Inquiries', val: (() => { const normFn = (s: string) => (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\b(bank|banks|na|llc|inc|corp|financial|credit|services|service|auto|usa|us|co|fd|fcu|cu)\b/g,'').replace(/\s+/g,' ').trim(); const cnames = cuentas.map((c:any) => normFn(c.acreedor||'')); const hard = inquiries.filter((q:any)=>q.tipo==='hard'||!q.tipo); return hard.filter((q:any)=>{ const n=normFn(q.empresa||''); if(!n||n.length<3) return true; return !cnames.some(cn=>{ if(!cn||cn.length<3) return false; if(cn.includes(n)||n.includes(cn)) return true; return n.split(' ').filter((w:string)=>w.length>3).some((w:string)=>cn.includes(w)) }); }).length })(), color: '#f59e0b' },
               { label: 'Duplicates', val: (analisis.cuentas_duplicadas || []).length || rg.cuentas_duplicadas_detectadas || 0, color: '#f87171' },
               { label: 'Personal Issues', val: (analisis.inconsistencias_personales || []).length || rg.inconsistencias_personales_detectadas || 0, color: '#a78bfa' },
             ]
@@ -621,18 +621,50 @@ export default function AnalisisPage() {
           { name: 'Equifax',    color: '#f87171', border: 'rgba(248,113,113,0.25)', bg: 'rgba(248,113,113,0.04)', pill: 'rgba(248,113,113,0.12)' },
           { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
         ]
+
+        // Normalize a name for fuzzy matching: lowercase, strip punctuation, remove common suffixes
+        const norm = (s: string) => (s || '').toLowerCase()
+          .replace(/[^a-z0-9 ]/g, ' ')
+          .replace(/\b(bank|banks|na|llc|inc|corp|financial|credit|services|service|auto|usa|us|co|fd|fcu|cu)\b/g, '')
+          .replace(/\s+/g, ' ').trim()
+
+        // Build normalized set of account creditor names
+        const creditorNames = cuentas.map((c: any) => norm(c.acreedor || ''))
+
+        // Check if inquiry company has any match among active accounts
+        const hasRelatedAccount = (empresa: string) => {
+          const inqNorm = norm(empresa)
+          if (!inqNorm || inqNorm.length < 3) return false
+          return creditorNames.some(cn => {
+            if (!cn || cn.length < 3) return false
+            // Match if one contains the other, or share a meaningful word (>3 chars)
+            if (cn.includes(inqNorm) || inqNorm.includes(cn)) return true
+            const inqWords = inqNorm.split(' ').filter(w => w.length > 3)
+            return inqWords.some(w => cn.includes(w))
+          })
+        }
+
+        // Filter to only unrelated inquiries (disputable)
+        const disputableInquiries = hardInquiries.filter((q: any) => !hasRelatedAccount(q.empresa))
+        const relatedCount = hardInquiries.length - disputableInquiries.length
+
         // Group by bureau; inquiries with no bureau go to "Unknown"
         const byBureau: Record<string, any[]> = {}
-        hardInquiries.forEach((q: any) => {
+        disputableInquiries.forEach((q: any) => {
           const b = (q.buro || '').trim() || 'Unknown'
           if (!byBureau[b]) byBureau[b] = []
           byBureau[b].push(q)
         })
         return (
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '12px', margin: '0 0 16px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
-              Hard Inquiries ({hardInquiries.length})
-            </h2>
+            <div style={{ marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '12px', margin: '0 0 4px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+                Hard Inquiries — Disputable ({disputableInquiries.length})
+              </h2>
+              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
+                {hardInquiries.length} total · {relatedCount} match an active account · <span style={{ color: '#f59e0b' }}>{disputableInquiries.length} with no related account</span> (potentially unauthorized)
+              </p>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {INQBUREAUS.filter(b => byBureau[b.name]).map(b => (
                 <div key={b.name} style={{ background: b.bg, border: `1px solid ${b.border}`, borderRadius: '10px', padding: '12px 14px' }}>
