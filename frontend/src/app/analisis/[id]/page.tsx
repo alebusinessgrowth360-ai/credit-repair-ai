@@ -622,30 +622,31 @@ export default function AnalisisPage() {
           { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
         ]
 
-        // Normalize a name for fuzzy matching: lowercase, strip punctuation, remove common suffixes
+        // Normalize: lowercase, strip punctuation only — keep all words to avoid false positives
         const norm = (s: string) => (s || '').toLowerCase()
           .replace(/[^a-z0-9 ]/g, ' ')
-          .replace(/\b(bank|banks|na|llc|inc|corp|financial|credit|services|service|auto|usa|us|co|fd|fcu|cu)\b/g, '')
           .replace(/\s+/g, ' ').trim()
 
         // Build normalized set of account creditor names
         const creditorNames = cuentas.map((c: any) => norm(c.acreedor || ''))
 
-        // Check if inquiry company has any match among active accounts
+        // Check if inquiry company matches an active account.
+        // Conservative: only match if one string contains the other as a substring,
+        // OR they share a distinctive keyword (> 6 chars) to reduce false positives.
         const hasRelatedAccount = (empresa: string) => {
           const inqNorm = norm(empresa)
-          if (!inqNorm || inqNorm.length < 3) return false
+          if (!inqNorm || inqNorm.length < 4) return false
           return creditorNames.some(cn => {
-            if (!cn || cn.length < 3) return false
-            // Match if one contains the other, or share a meaningful word (>3 chars)
+            if (!cn || cn.length < 4) return false
             if (cn.includes(inqNorm) || inqNorm.includes(cn)) return true
-            const inqWords = inqNorm.split(' ').filter(w => w.length > 3)
-            return inqWords.some(w => cn.includes(w))
+            // Share a long distinctive word (> 6 chars) — avoids matching on "first", "bank", etc.
+            const keywords = inqNorm.split(' ').filter(w => w.length > 6)
+            return keywords.length > 0 && keywords.every(w => cn.includes(w))
           })
         }
 
         // Filter to only unrelated inquiries (disputable)
-        const disputableInquiries = hardInquiries.filter((q: any) => !hasRelatedAccount(q.empresa))
+        const disputableInquiries = hardInquiries.filter((q: any) => !hasRelatedAccount(q.empresa || q.acreedor))
         const relatedCount = hardInquiries.length - disputableInquiries.length
 
         // Group by bureau; inquiries with no bureau go to "Unknown"
@@ -675,7 +676,7 @@ export default function AnalisisPage() {
                     {byBureau[b.name].map((q: any, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: b.pill, border: `1px solid ${b.border}`, borderRadius: '7px' }}>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || '—'}</div>
+                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || q.acreedor || '—'}</div>
                           {q.fecha && <div style={{ fontSize: '10px', color: '#64748b' }}>{q.fecha}</div>}
                         </div>
                         <button className="no-print"
@@ -699,7 +700,7 @@ export default function AnalisisPage() {
                     {byBureau['Unknown'].map((q: any, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '7px' }}>
                         <div>
-                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || '—'}</div>
+                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || q.acreedor || '—'}</div>
                           {q.fecha && <div style={{ fontSize: '10px', color: '#64748b' }}>{q.fecha}</div>}
                         </div>
                         <button className="no-print"
