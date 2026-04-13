@@ -614,27 +614,77 @@ export default function AnalisisPage() {
       )}
 
       {/* Inquiries */}
-      {inquiries.length > 0 && (
-        <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Hard Inquiries ({inquiries.filter((q: any) => q.tipo === 'hard').length})</h2>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-            {inquiries.filter((q: any) => q.tipo === 'hard' || !q.tipo).map((q: any, i: number) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || '—'}</div>
-                  {q.fecha && <div style={{ fontSize: '10px', color: '#64748b' }}>{q.fecha}</div>}
+      {inquiries.length > 0 && (() => {
+        const hardInquiries = inquiries.filter((q: any) => q.tipo === 'hard' || !q.tipo)
+        const INQBUREAUS = [
+          { name: 'TransUnion', color: '#34d399', border: 'rgba(52,211,153,0.25)', bg: 'rgba(52,211,153,0.04)', pill: 'rgba(52,211,153,0.12)' },
+          { name: 'Equifax',    color: '#f87171', border: 'rgba(248,113,113,0.25)', bg: 'rgba(248,113,113,0.04)', pill: 'rgba(248,113,113,0.12)' },
+          { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
+        ]
+        // Group by bureau; inquiries with no bureau go to "Unknown"
+        const byBureau: Record<string, any[]> = {}
+        hardInquiries.forEach((q: any) => {
+          const b = (q.buro || '').trim() || 'Unknown'
+          if (!byBureau[b]) byBureau[b] = []
+          byBureau[b].push(q)
+        })
+        return (
+          <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '12px', margin: '0 0 16px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+              Hard Inquiries ({hardInquiries.length})
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              {INQBUREAUS.filter(b => byBureau[b.name]).map(b => (
+                <div key={b.name} style={{ background: b.bg, border: `1px solid ${b.border}`, borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: b.color, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+                    {b.name} · {byBureau[b.name].length} inquir{byBureau[b.name].length === 1 ? 'y' : 'ies'}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {byBureau[b.name].map((q: any, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: b.pill, border: `1px solid ${b.border}`, borderRadius: '7px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || '—'}</div>
+                          {q.fecha && <div style={{ fontSize: '10px', color: '#64748b' }}>{q.fecha}</div>}
+                        </div>
+                        <button className="no-print"
+                          onClick={() => generarCarta('carta_inquiry', b.name, 'FCRA', q)}
+                          disabled={!!generando}
+                          style={{ padding: '3px 9px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '5px', color: '#f59e0b', fontSize: '10px', cursor: 'pointer' }}>
+                          Dispute
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <button className="no-print"
-                  onClick={() => generarCarta('carta_inquiry', 'Experian', 'FCRA', q)}
-                  disabled={!!generando}
-                  style={{ padding: '3px 9px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '5px', color: '#f59e0b', fontSize: '10px', cursor: 'pointer' }}>
-                  Dispute
-                </button>
-              </div>
-            ))}
+              ))}
+              {/* Inquiries with no bureau assigned */}
+              {byBureau['Unknown'] && (
+                <div style={{ background: 'rgba(245,158,11,0.04)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '10px', padding: '12px 14px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+                    Bureau not identified · {byBureau['Unknown'].length}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {byBureau['Unknown'].map((q: any, i: number) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '7px' }}>
+                        <div>
+                          <div style={{ fontSize: '12px', color: '#f1f5f9' }}>{q.empresa || '—'}</div>
+                          {q.fecha && <div style={{ fontSize: '10px', color: '#64748b' }}>{q.fecha}</div>}
+                        </div>
+                        <button className="no-print"
+                          onClick={() => generarCarta('carta_inquiry', q.buro || 'Experian', 'FCRA', q)}
+                          disabled={!!generando}
+                          style={{ padding: '3px 9px', background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '5px', color: '#f59e0b', fontSize: '10px', cursor: 'pointer' }}>
+                          Dispute
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Recommendations */}
       {recomendaciones.length > 0 && (
