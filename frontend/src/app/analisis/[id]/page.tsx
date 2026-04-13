@@ -349,8 +349,9 @@ export default function AnalisisPage() {
             const colCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'collection' || e.includes('collection') }).length
             const coCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'charge_off' || e.includes('charge off') || e.includes('charge-off') }).length
             const negCount = cuentas.filter((c: any) => c.negativo || (c.tipo_negativo && c.tipo_negativo !== '')).length
+            const uniqueCount = new Set(cuentas.map((c: any) => (c.acreedor || '').toLowerCase().trim())).size
             return [
-              { label: 'Total Accounts', val: cuentas.length || rg.total_cuentas || 0, color: '#e2e8f0' },
+              { label: 'Total Accounts', val: uniqueCount || rg.total_cuentas || 0, color: '#e2e8f0' },
               { label: 'Positive', val: (cuentas.length || rg.total_cuentas || 0) - negCount || rg.cuentas_positivas || 0, color: '#00ff88' },
               { label: 'Negative', val: negCount || rg.cuentas_negativas || 0, color: '#ef4444' },
               { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
@@ -482,67 +483,106 @@ export default function AnalisisPage() {
         </div>
       )}
 
-      {cuentas.length > 0 && (
-        <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
-          <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>Accounts ({cuentas.length})</h2>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr>
-                  {['Creditor', 'Type', 'Balance', 'Status', 'Bureau', 'Disputable'].map(h => (
-                    <th key={h} style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.05)', color: '#64748b', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase' }}>{h}</th>
-                  ))}
-                  <th className="no-print" style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.05)', color: '#64748b', fontSize: '10px', textTransform: 'uppercase' }}>Letter</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cuentas.map((c: any, i: number) => {
-                  const estadoLower = (c.estado || '').toLowerCase()
-                  const tipoLower = (c.tipo || '').toLowerCase()
-                  const esColeccion = c.tipo_negativo === 'collection' || estadoLower.includes('collection') || estadoLower.includes('collections') || tipoLower.includes('collection')
-                  const esChargeOff = c.tipo_negativo === 'charge_off' || estadoLower.includes('charge off') || estadoLower.includes('charge-off') || estadoLower.includes('chargeoff')
-                  const esNegativo = c.negativo || esColeccion || esChargeOff || estadoLower.includes('derogatory') || estadoLower.includes('past due') || estadoLower.includes('late')
-                  const bgColor = esColeccion ? 'rgba(239,68,68,0.08)' : esChargeOff ? 'rgba(239,68,68,0.05)' : 'transparent'
-                  const borderLeft = esColeccion ? '3px solid #ef4444' : esChargeOff ? '3px solid #f97316' : '3px solid transparent'
-                  const statusBg = esColeccion ? 'rgba(239,68,68,0.2)' : esChargeOff ? 'rgba(249,115,22,0.15)' : esNegativo ? 'rgba(239,68,68,0.1)' : 'rgba(0,255,136,0.1)'
-                  const statusColor = esColeccion ? '#ef4444' : esChargeOff ? '#f97316' : esNegativo ? '#f87171' : '#00ff88'
-                  return (
-                  <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: bgColor, borderLeft }}>
-                    <td style={{ padding: '9px 10px', color: esNegativo ? '#fca5a5' : '#f1f5f9', fontWeight: esNegativo ? '700' : '400' }}>
-                      {esColeccion && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>COLLECTION</span>}
-                      {esChargeOff && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>CHARGE OFF</span>}
-                      {c.acreedor || '—'}
-                      {c.original_creditor && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Orig: {c.original_creditor}</div>}
-                    </td>
-                    <td style={{ padding: '9px 10px', color: '#94a3b8' }}>{c.tipo || '—'}</td>
-                    <td style={{ padding: '9px 10px', color: esNegativo ? '#ef4444' : '#94a3b8', fontWeight: esNegativo ? '600' : '400' }}>{c.balance || '—'}</td>
-                    <td style={{ padding: '9px 10px' }}>
-                      <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '20px', background: statusBg, color: statusColor, fontWeight: esColeccion ? 'bold' : 'normal' }}>
-                        {c.estado || '—'}
-                      </span>
-                    </td>
-                    <td style={{ padding: '9px 10px', color: '#38bdf8', fontSize: '11px' }}>{c.buro || '—'}</td>
-                    <td style={{ padding: '9px 10px' }}>
-                      {(c.disputable || esColeccion || esChargeOff) ? <span style={{ color: '#f59e0b', fontSize: '11px' }}>⚠ {c.razon_disputa || (esColeccion ? 'Collection account' : esChargeOff ? 'Charge-off' : 'Yes')}</span> : <span style={{ color: '#475569', fontSize: '11px' }}>—</span>}
-                    </td>
-                    <td className="no-print" style={{ padding: '9px 10px' }}>
-                      {(c.disputable || esColeccion || esChargeOff) && (
-                        <button
-                          onClick={() => generarCarta(esColeccion ? 'carta_coleccion' : inferTipoCarta(c.tipo || ''), c.buro || 'Experian', esColeccion ? 'FDCPA' : 'FCRA', c)}
-                          disabled={!!generando}
-                          style={{ padding: '3px 9px', background: esColeccion ? 'rgba(239,68,68,0.15)' : 'rgba(0,255,136,0.1)', border: `1px solid ${esColeccion ? 'rgba(239,68,68,0.4)' : 'rgba(0,255,136,0.3)'}`, borderRadius: '5px', color: esColeccion ? '#ef4444' : '#00ff88', fontSize: '10px', cursor: 'pointer' }}>
-                          Draft
-                        </button>
-                      )}
-                    </td>
+      {cuentas.length > 0 && (() => {
+        const BUREAU_CFG = [
+          { name: 'TransUnion', abbr: 'TU', color: '#34d399', bg: 'rgba(52,211,153,0.15)', border: 'rgba(52,211,153,0.45)' },
+          { name: 'Equifax',    abbr: 'EQ', color: '#f87171', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)' },
+          { name: 'Experian',   abbr: 'EX', color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.45)' },
+        ]
+        // Group by normalized creditor name
+        const grouped: Record<string, any[]> = {}
+        cuentas.forEach((c: any) => {
+          const key = (c.acreedor || 'unknown').toLowerCase().trim().replace(/\s+/g, ' ')
+          if (!grouped[key]) grouped[key] = []
+          grouped[key].push(c)
+        })
+        const grupos = Object.values(grouped)
+        return (
+          <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+              Accounts ({grupos.length}<span style={{ color: '#475569', fontWeight: 'normal' }}> unique · {cuentas.length} total</span>)
+            </h2>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr>
+                    {['Creditor', 'Type', 'Balance', 'Status', 'Bureaus', 'Disputable'].map(h => (
+                      <th key={h} style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.05)', color: '#64748b', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase' }}>{h}</th>
+                    ))}
+                    <th className="no-print" style={{ padding: '7px 10px', background: 'rgba(255,255,255,0.05)', color: '#64748b', fontSize: '10px', textTransform: 'uppercase' }}>Letter</th>
                   </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {grupos.map((accounts: any[], i: number) => {
+                    const c = accounts[0]
+                    const burosPresentes = accounts.map((a: any) => (a.buro || '').trim()).filter(Boolean)
+                    const estadoLower = (c.estado || '').toLowerCase()
+                    const tipoLower = (c.tipo || '').toLowerCase()
+                    const esColeccion = c.tipo_negativo === 'collection' || estadoLower.includes('collection') || tipoLower.includes('collection')
+                    const esChargeOff = c.tipo_negativo === 'charge_off' || estadoLower.includes('charge off') || estadoLower.includes('charge-off') || estadoLower.includes('chargeoff')
+                    const esNegativo = c.negativo || esColeccion || esChargeOff || estadoLower.includes('derogatory') || estadoLower.includes('past due') || estadoLower.includes('late')
+                    const bgColor = esColeccion ? 'rgba(239,68,68,0.08)' : esChargeOff ? 'rgba(239,68,68,0.05)' : 'transparent'
+                    const borderLeft = esColeccion ? '3px solid #ef4444' : esChargeOff ? '3px solid #f97316' : '3px solid transparent'
+                    const statusBg = esColeccion ? 'rgba(239,68,68,0.2)' : esChargeOff ? 'rgba(249,115,22,0.15)' : esNegativo ? 'rgba(239,68,68,0.1)' : 'rgba(0,255,136,0.1)'
+                    const statusColor = esColeccion ? '#ef4444' : esChargeOff ? '#f97316' : esNegativo ? '#f87171' : '#00ff88'
+                    const firstBuro = burosPresentes[0] || 'Experian'
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: bgColor, borderLeft }}>
+                        <td style={{ padding: '9px 10px', color: esNegativo ? '#fca5a5' : '#f1f5f9', fontWeight: esNegativo ? '700' : '400' }}>
+                          {esColeccion && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>COLLECTION</span>}
+                          {esChargeOff && <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#f97316', background: 'rgba(249,115,22,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>CHARGE OFF</span>}
+                          {c.acreedor || '—'}
+                          {c.original_creditor && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>Orig: {c.original_creditor}</div>}
+                        </td>
+                        <td style={{ padding: '9px 10px', color: '#94a3b8' }}>{c.tipo || '—'}</td>
+                        <td style={{ padding: '9px 10px', color: esNegativo ? '#ef4444' : '#94a3b8', fontWeight: esNegativo ? '600' : '400' }}>{c.balance || '—'}</td>
+                        <td style={{ padding: '9px 10px' }}>
+                          <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '20px', background: statusBg, color: statusColor, fontWeight: esColeccion ? 'bold' : 'normal' }}>
+                            {c.estado || '—'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '9px 10px' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {BUREAU_CFG.map(b => {
+                              const presente = burosPresentes.some((bp: string) => bp.toLowerCase().includes(b.name.toLowerCase()))
+                              return (
+                                <span key={b.name} title={presente ? b.name : `Not in ${b.name}`} style={{
+                                  fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px',
+                                  background: presente ? b.bg : 'rgba(255,255,255,0.03)',
+                                  color: presente ? b.color : '#1e293b',
+                                  border: `1px solid ${presente ? b.border : 'rgba(255,255,255,0.05)'}`,
+                                  letterSpacing: '0.5px', userSelect: 'none'
+                                }}>
+                                  {b.abbr}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </td>
+                        <td style={{ padding: '9px 10px' }}>
+                          {(c.disputable || esColeccion || esChargeOff)
+                            ? <span style={{ color: '#f59e0b', fontSize: '11px' }}>⚠ {c.razon_disputa || (esColeccion ? 'Collection account' : esChargeOff ? 'Charge-off' : 'Yes')}</span>
+                            : <span style={{ color: '#475569', fontSize: '11px' }}>—</span>}
+                        </td>
+                        <td className="no-print" style={{ padding: '9px 10px' }}>
+                          {(c.disputable || esColeccion || esChargeOff) && (
+                            <button
+                              onClick={() => generarCarta(esColeccion ? 'carta_coleccion' : inferTipoCarta(c.tipo || ''), firstBuro, esColeccion ? 'FDCPA' : 'FCRA', c)}
+                              disabled={!!generando}
+                              style={{ padding: '3px 9px', background: esColeccion ? 'rgba(239,68,68,0.15)' : 'rgba(0,255,136,0.1)', border: `1px solid ${esColeccion ? 'rgba(239,68,68,0.4)' : 'rgba(0,255,136,0.3)'}`, borderRadius: '5px', color: esColeccion ? '#ef4444' : '#00ff88', fontSize: '10px', cursor: 'pointer' }}>
+                              Draft
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Cuentas Duplicadas */}
       {(analisis.cuentas_duplicadas || []).length > 0 && (
