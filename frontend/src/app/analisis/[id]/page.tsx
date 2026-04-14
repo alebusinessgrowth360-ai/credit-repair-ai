@@ -356,7 +356,7 @@ export default function AnalisisPage() {
               { label: 'Negative', val: negCount || rg.cuentas_negativas || 0, color: '#ef4444' },
               { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
               { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
-              { label: 'Disp. Inquiries', val: (() => { const normFn = (s: string) => (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\b(bank|banks|na|llc|inc|corp|financial|credit|services|service|auto|usa|us|co|fd|fcu|cu)\b/g,'').replace(/\s+/g,' ').trim(); const cnames = cuentas.map((c:any) => normFn(c.acreedor||'')); const hard = inquiries.filter((q:any)=>q.tipo==='hard'||!q.tipo); return hard.filter((q:any)=>{ const n=normFn(q.empresa||''); if(!n||n.length<3) return true; return !cnames.some(cn=>{ if(!cn||cn.length<3) return false; if(cn.includes(n)||n.includes(cn)) return true; return n.split(' ').filter((w:string)=>w.length>3).some((w:string)=>cn.includes(w)) }); }).length })(), color: '#f59e0b' },
+              { label: 'Disp. Inquiries', val: inquiries.filter((q: any) => (q.tipo === 'hard' || !q.tipo) && q.relacionado_con_cuenta === false).length, color: '#f59e0b' },
               { label: 'Duplicates', val: (analisis.cuentas_duplicadas || []).length || rg.cuentas_duplicadas_detectadas || 0, color: '#f87171' },
               { label: 'Personal Issues', val: (analisis.inconsistencias_personales || []).length || rg.inconsistencias_personales_detectadas || 0, color: '#a78bfa' },
             ]
@@ -622,31 +622,8 @@ export default function AnalisisPage() {
           { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
         ]
 
-        // Normalize: lowercase, strip punctuation only — keep all words to avoid false positives
-        const norm = (s: string) => (s || '').toLowerCase()
-          .replace(/[^a-z0-9 ]/g, ' ')
-          .replace(/\s+/g, ' ').trim()
-
-        // Build normalized set of account creditor names
-        const creditorNames = cuentas.map((c: any) => norm(c.acreedor || ''))
-
-        // Check if inquiry company matches an active account.
-        // Conservative: only match if one string contains the other as a substring,
-        // OR they share a distinctive keyword (> 6 chars) to reduce false positives.
-        const hasRelatedAccount = (empresa: string) => {
-          const inqNorm = norm(empresa)
-          if (!inqNorm || inqNorm.length < 4) return false
-          return creditorNames.some(cn => {
-            if (!cn || cn.length < 4) return false
-            if (cn.includes(inqNorm) || inqNorm.includes(cn)) return true
-            // Share a long distinctive word (> 6 chars) — avoids matching on "first", "bank", etc.
-            const keywords = inqNorm.split(' ').filter(w => w.length > 6)
-            return keywords.length > 0 && keywords.every(w => cn.includes(w))
-          })
-        }
-
-        // Filter to only unrelated inquiries (disputable)
-        const disputableInquiries = hardInquiries.filter((q: any) => !hasRelatedAccount(q.empresa || q.acreedor))
+        // Use AI-assigned field: relacionado_con_cuenta=false means no active account matches this inquiry
+        const disputableInquiries = hardInquiries.filter((q: any) => q.relacionado_con_cuenta === false)
         const relatedCount = hardInquiries.length - disputableInquiries.length
 
         // Group by bureau; inquiries with no bureau go to "Unknown"
