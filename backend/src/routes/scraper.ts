@@ -42,7 +42,7 @@ async function httpPost(url: string, body: URLSearchParams | string, jar: Cookie
   return res
 }
 
-async function login(email: string, password: string): Promise<CookieJar> {
+async function login(email: string, password: string): Promise<{ jar: CookieJar; matchGUID: string; customerGroupID: string }> {
   const jar = new CookieJar()
 
   // GET login page to get tGUID + session cookies
@@ -62,7 +62,15 @@ async function login(email: string, password: string): Promise<CookieJar> {
     throw new Error(errText || 'Email o contraseña incorrectos.')
   }
 
-  return jar
+  // Extract matchGUID and customerGroupID from the member area page
+  const memberHTML = loginRes.data as string
+  const $member = cheerio.load(memberHTML)
+  const matchGUID = $member('#matchGUID').text().trim() || $member('[id="matchGUID"]').text().trim()
+  const customerGroupID = $member('[data-field-name="CustomerGroupID"]').attr('data-field-val') || ''
+
+  console.log('[SCRAPER] matchGUID:', matchGUID, '| customerGroupID:', customerGroupID)
+
+  return { jar, matchGUID, customerGroupID }
 }
 
 async function fetchBureauReport(jar: CookieJar, ajaxAction: string): Promise<string> {
@@ -187,12 +195,31 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
   if (!email || !password) return res.status(400).json({ error: 'Se requieren email y contraseña del cliente' })
 
   try {
-    const jar = await login(email, password)
+    const { jar, matchGUID, customerGroupID } = await login(email, password)
 
-    // Get the report page first to establish context
+    // Step 2: Call the fulfillment API to activate credit data in the session
+    // This is what the browser JS calls before making the credit report AJAX calls
+    if (matchGUID && customerGroupID) {
+      const fulfillParams = new URLSearchParams({
+        customerGroupID,
+        customerGUID: matchGUID,
+        retryAttempt: '0',
+        returnUserToken: '1'
+      })
+      const fulfillRes = await httpPost(
+        `${BASE}/services/serv_proxy_efficient_fulfillment_array.asp`,
+        fulfillParams,
+        jar,
+        `${BASE}${REPORT_PATH}`
+      )
+      console.log('[SCRAPER] Fulfillment response length:', String(fulfillRes.data).length, '| status:', fulfillRes.status)
+      console.log('[SCRAPER] Fulfillment sample:', String(fulfillRes.data).substring(0, 500))
+    }
+
+    // Step 3: GET the report page to set session context
     await httpGet(`${BASE}${REPORT_PATH}`, jar)
 
-    // Fetch each bureau's report via the AJAX endpoints discovered in the JS
+    // Step 4: Fetch each bureau's report via the AJAX endpoints discovered in the JS
     const [tuiHTML, expHTML, efxHTML] = await Promise.all([
       fetchBureauReport(jar, 'MCC_CreditReport_TUI'),
       fetchBureauReport(jar, 'MCC_CreditReport_EXP'),
