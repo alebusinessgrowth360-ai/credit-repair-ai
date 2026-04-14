@@ -221,7 +221,15 @@ export default function AnalisisPage() {
   const inconsistencias: any[] = analisis.inconsistencias_entre_buros || []
   const recomendaciones: any[] = analisis.recomendaciones || []
   const cuentas: any[] = analisis.cuentas || []
-  const inquiries: any[] = analisis.inquiries || []
+  // Support both formats: new {TransUnion:[...], Equifax:[...], Experian:[...]} and old flat array
+  const inquiriesRaw = analisis.inquiries || {}
+  const inquiries: any[] = Array.isArray(inquiriesRaw)
+    ? inquiriesRaw
+    : [
+        ...((inquiriesRaw.TransUnion || []).map((q: any) => ({ ...q, buro: 'TransUnion', tipo: 'hard' }))),
+        ...((inquiriesRaw.Equifax    || []).map((q: any) => ({ ...q, buro: 'Equifax',    tipo: 'hard' }))),
+        ...((inquiriesRaw.Experian   || []).map((q: any) => ({ ...q, buro: 'Experian',   tipo: 'hard' }))),
+      ]
   const erroresAlta = errores.filter(e => e.prioridad === 'alta')
 
   const inp = { padding: '9px 12px', background: '#0a0f1e', border: '1px solid rgba(0,255,136,0.2)', borderRadius: '7px', color: '#e2e8f0', fontSize: '12px', width: '100%', boxSizing: 'border-box' as const }
