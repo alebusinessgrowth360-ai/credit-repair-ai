@@ -121,7 +121,10 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae TODOS los hard inquiries separados por buró (secciones "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Para cada inquiry incluye: empresa (nombre exacto), fecha (MM/YYYY). NO omitas ninguno.
+3. Extrae TODOS los hard inquiries separados por buró (secciones "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Para cada inquiry incluye: empresa (nombre exacto), fecha (MM/YYYY). Reglas críticas:
+   - NO omitas ninguno — cuenta todos los que aparecen en el reporte.
+   - NO deduplicques entre burós — si CAPITAL ONE aparece como inquiry en TransUnion Y en Equifax, va en ambos arrays.
+   - Cada sección de buró tiene su propia lista independiente; extráela completa.
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
 5. Si el reporte muestra datos personales separados por buró (Experian / Equifax / TransUnion), extrae lo que cada buró reporta por separado para detectar diferencias.
