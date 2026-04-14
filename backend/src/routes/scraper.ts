@@ -34,56 +34,60 @@ async function scrapeReport(email: string, password: string) {
     await page.goto(`${BASE}/customer_login.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
     await page.type('#username', email, { delay: 30 })
     await page.type('#password', password, { delay: 30 })
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
-      page.click('.btn.login')
-    ])
+    await page.click('.btn.login')
+    await new Promise(r => setTimeout(r, 4000))
 
-    // Detect login failure
-    const stillOnLogin = await page.$('input[name="password"]')
-    if (stillOnLogin) throw new Error('Email o contraseña incorrectos.')
-
-    // Step 2: Navigate to credit report page
-    await page.goto(`${BASE}/cp6/mcc_creditreports_v2.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
-
-    // Step 3: Wait for bureau tabs/sections to appear and trigger loading
-    // The page loads report data lazily when tabs are clicked
-    await new Promise(r => setTimeout(r, 3000))
-
-    // Try to find and click tabs to load each bureau's data
-    const tabSelectors = [
-      '#transunion-tab, [href="#transunion"], [data-target="#transunion"], .nav-tab-transunion',
-      '#equifax-tab, [href="#equifax"], [data-target="#equifax"], .nav-tab-equifax',
-      '#experian-tab, [href="#experian"], [data-target="#experian"], .nav-tab-experian',
-    ]
-
-    for (const sel of tabSelectors) {
-      try {
-        const tab = await page.$(sel)
-        if (tab) {
-          await tab.click()
-          await new Promise(r => setTimeout(r, 2000))
-        }
-      } catch (_) {}
+    // Detect login failure by checking if still on login page (URL contains login or form is visible)
+    const currentUrl = page.url()
+    const formVisible = await page.evaluate(new Function(`
+      return !!(document.querySelector('#CFForm_1') || document.querySelector('.btn.login'))
+    `) as () => boolean)
+    if (currentUrl.includes('customer_login') || formVisible) {
+      throw new Error('Email o contraseña incorrectos. Verifica las credenciales del cliente.')
     }
 
-    // Step 4: Wait for report bodies to load
+    // Step 2: Navigate to credit report page and wait for page JS to initialize
+    await page.goto(`${BASE}/cp6/mcc_creditreports_v2.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
     await new Promise(r => setTimeout(r, 5000))
 
-    // Step 5: Get each bureau's report via jQuery AJAX (exactly what the browser JS does)
-    function makeBureauCall(ajaxAction: string) {
-      return `new Promise(function(resolve) {
+    // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
+    // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
+    async function loadBureauViaJQ(ajaxAction: string, divId: string): Promise<string> {
+      // Trigger the AJAX load
+      await page.evaluate(new Function('ajaxAction', `
         var jq = window.jQuery || window.$;
-        if (!jq) { resolve(''); return; }
-        jq.post('mcc_creditreports_v2.asp', {
-          ajax: 'true', ajaxAction: '${ajaxAction}', historyReportID: ''
-        }, function(data) { resolve(data); }).fail(function() { resolve(''); });
-      })`
+        if (!jq) return;
+        jq.post('mcc_creditreports_v2.asp',
+          { ajax: 'true', ajaxAction: ajaxAction, historyReportID: '' },
+          function(data) {
+            var div = document.getElementById('${divId}');
+            if (div) { div.innerHTML = data; div.setAttribute('loaded','1'); }
+          }
+        );
+      `) as (a: string) => void, ajaxAction)
+
+      // Wait for the div to be marked as loaded
+      try {
+        await page.waitForFunction(
+          new Function('id', `return document.getElementById(id) && document.getElementById(id).getAttribute('loaded') === '1'`) as (id: string) => boolean,
+          { timeout: 20000 },
+          divId
+        )
+      } catch (_) {
+        console.log(`[SCRAPER] Timeout waiting for ${divId}`)
+      }
+
+      const html: string = await page.evaluate(new Function('id', `
+        var el = document.getElementById(id);
+        return el ? el.innerHTML : '';
+      `) as (id: string) => string, divId)
+
+      return html
     }
 
-    const tuiHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_TUI')}`) as () => Promise<string>)
-    const expHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_EXP')}`) as () => Promise<string>)
-    const efxHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_EFX')}`) as () => Promise<string>)
+    const tuiHTML = await loadBureauViaJQ('MCC_CreditReport_TUI', 'report-transunion-body')
+    const expHTML = await loadBureauViaJQ('MCC_CreditReport_EXP', 'report-experian-body')
+    const efxHTML = await loadBureauViaJQ('MCC_CreditReport_EFX', 'report-equifax-body')
 
     console.log('[SCRAPER] TUI:', tuiHTML.length, 'EXP:', expHTML.length, 'EFX:', efxHTML.length)
     console.log('[SCRAPER] TUI sample:', tuiHTML.substring(0, 300))
