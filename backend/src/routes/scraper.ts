@@ -51,12 +51,28 @@ async function scrapeReport(email: string, password: string) {
       throw new Error('Email o contraseña incorrectos. Verifica las credenciales del cliente.')
     }
 
-    // Step 2: Navigate to credit report page and wait for page JS to initialize
-    await page.goto(`${BASE}/cp6/mcc_creditreports_v2.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
+    // Step 2: We're on mcc_creditscores.asp — wait for the scores JS to run the fulfillment API
+    // and build the "View Report" button. This sets up the session state needed for the report page.
+    console.log('[SCRAPER] Waiting for scores page to initialize...')
+    await new Promise(r => setTimeout(r, 8000))
+
+    // Find the credit report link on the scores page (button points to mcc_creditreports_v2.asp or _v3.asp)
+    const reportHref: string = await page.evaluate(new Function(`
+      var links = Array.from(document.querySelectorAll('a[href]'));
+      var reportLink = links.find(function(a) { return a.href && a.href.match(/mcc_creditreport/i); });
+      return reportLink ? reportLink.href : 'https://www.creditheroscore.com/cp6/mcc_creditreports_v2.asp';
+    `) as () => string)
+    console.log('[SCRAPER] Report link found:', reportHref)
+
+    // Step 3: Navigate to the report page (session is now primed with score data)
+    await page.goto(reportHref, { waitUntil: 'networkidle2', timeout: 30000 })
     const reportUrl = page.url()
     console.log('[SCRAPER] Report page URL:', reportUrl)
 
-    // Check if the expected report divs exist
+    // Wait for the page JS to create the bureau report divs
+    await new Promise(r => setTimeout(r, 8000))
+
+    // Check if divs exist now
     const divsExist = await page.evaluate(new Function(`
       return {
         tui: !!document.getElementById('report-transunion-body'),
@@ -66,8 +82,6 @@ async function scrapeReport(email: string, password: string) {
       }
     `) as () => any)
     console.log('[SCRAPER] Divs exist:', JSON.stringify(divsExist))
-
-    await new Promise(r => setTimeout(r, 5000))
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
     // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
