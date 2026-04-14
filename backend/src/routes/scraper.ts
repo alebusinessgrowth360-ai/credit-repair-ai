@@ -187,9 +187,27 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
 
   try {
     const html = await loginAndFetchReport(email, password)
+
+    // Debug: log HTML structure to console
+    const $ = require('cheerio').load(html)
+    const allTables: string[] = []
+    $('table').each((_i: number, tbl: any) => {
+      const txt = $(tbl).text().replace(/\s+/g, ' ').trim().substring(0, 300)
+      allTables.push(txt)
+    })
+    const cleanHtmlSample = html
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s{3,}/g, ' ')
+    console.log('[SCRAPER] HTML length:', html.length)
+    console.log('[SCRAPER] Tables found:', allTables.length)
+    allTables.forEach((t, i) => console.log(`[SCRAPER] Table[${i}]:`, t.substring(0, 200)))
+    console.log('[SCRAPER] HTML sample:', cleanHtmlSample.substring(0, 2000))
+
     const inquiries = parseInquiriesFromHTML(html)
     const scores = parseScoresFromHTML(html)
-
     const totalInquiries = inquiries.TransUnion.length + inquiries.Equifax.length + inquiries.Experian.length
 
     res.json({
@@ -197,14 +215,11 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
         scores,
         inquiries,
         total_inquiries: totalInquiries,
-        // Send clean HTML for AI processing
-        html_report: html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<!--[\s\S]*?-->/g, '')
-          .replace(/&nbsp;/g, ' ')
-          .replace(/\s{3,}/g, '  ')
-          .substring(0, 80000)
+        // Debug fields — remove after confirming structure
+        debug_tables_found: allTables.length,
+        debug_html_sample: cleanHtmlSample.substring(0, 3000),
+        debug_tables: allTables.slice(0, 5),
+        html_report: cleanHtmlSample.substring(0, 80000)
       },
       error: null
     })
