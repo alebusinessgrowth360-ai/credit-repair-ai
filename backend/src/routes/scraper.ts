@@ -80,65 +80,39 @@ async function scrapeReport(email: string, password: string) {
     console.log('[SCRAPER] Report GUID:', reportGUID)
     if (!reportGUID) throw new Error('No se encontró ningún reporte disponible en esta cuenta.')
 
-    // Submit the form with the report GUID — this loads the full 3-column credit report
-    await Promise.all([
-      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }),
-      page.evaluate(new Function(`
-        document.getElementById('reportForm').submit();
-      `) as () => void)
-    ])
-    console.log('[SCRAPER] After form submit URL:', page.url())
-    await new Promise(r => setTimeout(r, 15000))
+    // Step 3: Use fetch from within the browser context (cookies included automatically, same-origin)
+    // First POST the form to select the report (sets server session state)
+    const selectStatus: number = await page.evaluate(new Function('guid', `
+      return fetch('mcc_creditreports_v2.asp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'reportSelector=' + encodeURIComponent(guid)
+      }).then(function(r) { return r.status; });
+    `) as (g: string) => Promise<number>, reportGUID)
+    console.log('[SCRAPER] Select report POST status:', selectStatus)
 
-    // Log post-submit page structure
-    const postSubmitInfo = await page.evaluate(new Function(`
-      var ids = Array.from(document.querySelectorAll('[id]')).map(function(el) { return el.id; });
-      var bodySnippet = document.body ? document.body.innerHTML.substring(0, 3000) : '';
-      var divsWithReport = Array.from(document.querySelectorAll('[id*="report"],[id*="bureau"],[id*="tui"],[id*="exp"],[id*="efx"],[class*="report"],[class*="bureau"]')).slice(0,20).map(function(el) { return { id: el.id, cls: el.className.substring(0,80) }; });
-      return { ids: ids, bodySnippet: bodySnippet, divsWithReport: divsWithReport };
-    `) as () => any)
-    console.log('[SCRAPER] Post-submit IDs:', JSON.stringify(postSubmitInfo.ids))
-    console.log('[SCRAPER] Post-submit report divs:', JSON.stringify(postSubmitInfo.divsWithReport))
-    console.log('[SCRAPER] Post-submit body snippet:', postSubmitInfo.bodySnippet)
-
-    // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
-    // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
-    async function loadBureauViaJQ(ajaxAction: string, divId: string): Promise<string> {
-      // Trigger the AJAX load
-      await page.evaluate(new Function('ajaxAction', `
-        var jq = window.jQuery || window.$;
-        if (!jq) return;
-        jq.post('mcc_creditreports_v2.asp',
-          { ajax: 'true', ajaxAction: ajaxAction, historyReportID: '' },
-          function(data) {
-            var div = document.getElementById('${divId}');
-            if (div) { div.innerHTML = data; div.setAttribute('loaded','1'); }
-          }
-        );
-      `) as (a: string) => void, ajaxAction)
-
-      // Wait for the div to be marked as loaded
-      try {
-        await page.waitForFunction(
-          new Function('id', `return document.getElementById(id) && document.getElementById(id).getAttribute('loaded') === '1'`) as (id: string) => boolean,
-          { timeout: 20000 },
-          divId
-        )
-      } catch (_) {
-        console.log(`[SCRAPER] Timeout waiting for ${divId}`)
-      }
-
-      const html: string = await page.evaluate(new Function('id', `
-        var el = document.getElementById(id);
-        return el ? el.innerHTML : '';
-      `) as (id: string) => string, divId)
-
-      return html
+    // Then fetch each bureau AJAX response directly
+    async function fetchBureau(ajaxAction: string): Promise<string> {
+      const result: { status: number; body: string } = await page.evaluate(new Function('action', 'guid', `
+        return fetch('mcc_creditreports_v2.asp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: 'ajax=true&ajaxAction=' + encodeURIComponent(action) + '&historyReportID=' + encodeURIComponent(guid)
+        }).then(function(r) {
+          return r.text().then(function(t) { return { status: r.status, body: t }; });
+        });
+      `) as (a: string, g: string) => Promise<{ status: number; body: string }>, ajaxAction, reportGUID)
+      console.log(`[SCRAPER] ${ajaxAction}: status ${result.status}, ${result.body.length} chars`)
+      if (result.body.length < 500) console.log(`[SCRAPER] ${ajaxAction} body:`, result.body)
+      return result.body
     }
 
-    const tuiHTML = await loadBureauViaJQ('MCC_CreditReport_TUI', 'report-transunion-body')
-    const expHTML = await loadBureauViaJQ('MCC_CreditReport_EXP', 'report-experian-body')
-    const efxHTML = await loadBureauViaJQ('MCC_CreditReport_EFX', 'report-equifax-body')
+    const tuiHTML = await fetchBureau('MCC_CreditReport_TUI')
+    const expHTML = await fetchBureau('MCC_CreditReport_EXP')
+    const efxHTML = await fetchBureau('MCC_CreditReport_EFX')
 
     console.log('[SCRAPER] TUI:', tuiHTML.length, 'EXP:', expHTML.length, 'EFX:', efxHTML.length)
     console.log('[SCRAPER] TUI sample:', tuiHTML.substring(0, 300))
