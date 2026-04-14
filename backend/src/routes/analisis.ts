@@ -121,8 +121,7 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae los hard inquiries separados por buró (secciones "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Para cada inquiry incluye: empresa (nombre exacto), fecha (MM/YYYY).
-   IMPORTANTE — FILTRO: Incluye ÚNICAMENTE los inquiries cuya empresa NO tiene ninguna cuenta activa o cerrada en este reporte. Si el cliente tiene una cuenta con esa empresa (mismo nombre, nombre similar, abreviatura, o variante — ej: "SYNCB" = "Synchrony Bank", "AMEX" = "American Express", "JPMCB" = "Chase") → EXCLUYE ese inquiry. Solo incluye los inquiries de empresas con las que el cliente NO tiene ninguna relación de cuenta. Estos son los potencialmente no autorizados y disputables.
+3. Extrae TODOS los hard inquiries separados por buró (secciones "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Para cada inquiry incluye: empresa (nombre exacto), fecha (MM/YYYY). NO omitas ninguno.
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
 5. Si el reporte muestra datos personales separados por buró (Experian / Equifax / TransUnion), extrae lo que cada buró reporta por separado para detectar diferencias.

@@ -364,7 +364,7 @@ export default function AnalisisPage() {
               { label: 'Negative', val: negCount || rg.cuentas_negativas || 0, color: '#ef4444' },
               { label: 'Collections', val: colCount || rg.collections || 0, color: '#ef4444' },
               { label: 'Charge-offs', val: coCount || rg.charge_offs || 0, color: '#ef4444' },
-              { label: 'Disp. Inquiries', val: inquiries.filter((q: any) => (q.tipo === 'hard' || !q.tipo) && q.relacionado_con_cuenta === false).length, color: '#f59e0b' },
+              { label: 'Hard Inquiries', val: inquiries.filter((q: any) => q.tipo === 'hard' || !q.tipo).length || rg.hard_inquiries || 0, color: '#f59e0b' },
               { label: 'Duplicates', val: (analisis.cuentas_duplicadas || []).length || rg.cuentas_duplicadas_detectadas || 0, color: '#f87171' },
               { label: 'Personal Issues', val: (analisis.inconsistencias_personales || []).length || rg.inconsistencias_personales_detectadas || 0, color: '#a78bfa' },
             ]
@@ -630,9 +630,7 @@ export default function AnalisisPage() {
           { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
         ]
 
-        // AI already filtered out related inquiries at extraction time
         const disputableInquiries = hardInquiries
-        const relatedCount = 0
 
         // Group by bureau; inquiries with no bureau go to "Unknown"
         const byBureau: Record<string, any[]> = {}
@@ -643,14 +641,9 @@ export default function AnalisisPage() {
         })
         return (
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <h2 style={{ fontSize: '12px', margin: '0 0 4px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
-                Hard Inquiries — Disputable ({disputableInquiries.length})
-              </h2>
-              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>
-                Inquiries without a related account — potentially unauthorized and disputable under FCRA
-              </p>
-            </div>
+            <h2 style={{ fontSize: '12px', margin: '0 0 16px', color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+              Hard Inquiries ({hardInquiries.length})
+            </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {INQBUREAUS.filter(b => byBureau[b.name]).map(b => (
                 <div key={b.name} style={{ background: b.bg, border: `1px solid ${b.border}`, borderRadius: '10px', padding: '12px 14px' }}>
