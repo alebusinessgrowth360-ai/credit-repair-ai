@@ -22,6 +22,10 @@ export default function DetalleClientePage() {
   const [error, setError] = useState('')
   const [cartaAbierta, setCartaAbierta] = useState(null)
   const [exportandoCarta, setExportandoCarta] = useState(null)
+  const [borrrandoCarta, setBorrrandoCarta] = useState(null)
+  const [modalEditarCliente, setModalEditarCliente] = useState(false)
+  const [editForm, setEditForm] = useState({ nombre_completo: '', email: '', telefono: '', direccion: '', ciudad: '', estado: '', zip: '', notas: '', estado_caso: '' })
+  const [guardandoCliente, setGuardandoCliente] = useState(false)
   const [comparando, setComparando] = useState(false)
   const [reporteBase, setReporteBase] = useState('')
   const [reporteComp, setReporteComp] = useState('')
@@ -95,6 +99,52 @@ export default function DetalleClientePage() {
     } catch (err) { setError(err.message) }
   }
 
+  async function borrarCarta(cartaId) {
+    if (!confirm('¿Borrar esta carta?')) return
+    setBorrrandoCarta(cartaId)
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/cartas/' + cartaId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
+      if (!res.ok) throw new Error('Error al borrar')
+      setCartas(prev => prev.filter(c => c.id !== cartaId))
+    } catch (err) { setError(err.message) }
+    finally { setBorrrandoCarta(null) }
+  }
+
+  async function guardarCliente(e) {
+    e.preventDefault()
+    setGuardandoCliente(true); setError('')
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/clientes/' + id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(editForm)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setCliente(data.data)
+      setModalEditarCliente(false)
+      setMensaje('Cliente actualizado.')
+    } catch (err) { setError(err.message) }
+    finally { setGuardandoCliente(false) }
+  }
+
+  function abrirModalEditar() {
+    setEditForm({
+      nombre_completo: cliente.nombre_completo || '',
+      email: cliente.email || '',
+      telefono: cliente.telefono || '',
+      direccion: cliente.direccion || '',
+      ciudad: cliente.ciudad || '',
+      estado: cliente.estado || '',
+      zip: cliente.zip || '',
+      notas: cliente.notas || '',
+      estado_caso: cliente.estado_caso || ''
+    })
+    setModalEditarCliente(true)
+  }
+
   async function borrarCliente() {
     if (!confirm('¿Seguro? Se borrarán todos sus reportes y cartas.')) return
     const token = getToken()
@@ -163,9 +213,14 @@ export default function DetalleClientePage() {
         <button onClick={() => router.push('/clientes')} style={{ background:'none', border:'none', color:'#00ff88', cursor:'pointer', fontSize:'14px', display:'flex', alignItems:'center', gap:'6px' }}>
           ← Clientes
         </button>
-        <button onClick={borrarCliente} style={{ padding:'6px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
-          Borrar cliente
-        </button>
+        <div style={{ display:'flex', gap:'8px' }}>
+          <button onClick={abrirModalEditar} style={{ padding:'6px 16px', background:'rgba(0,255,136,0.08)', border:'1px solid rgba(0,255,136,0.3)', borderRadius:'8px', color:'#00ff88', fontSize:'12px', cursor:'pointer' }}>
+            Editar
+          </button>
+          <button onClick={borrarCliente} style={{ padding:'6px 16px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:'8px', color:'#f87171', fontSize:'12px', cursor:'pointer' }}>
+            Borrar cliente
+          </button>
+        </div>
       </div>
 
       {/* Cliente info */}
@@ -181,6 +236,52 @@ export default function DetalleClientePage() {
           {cliente.estado_caso}
         </span>
       </div>
+
+      {/* Modal editar cliente */}
+      {modalEditarCliente && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px', overflowY:'auto' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'16px', padding:'28px', maxWidth:'500px', width:'100%', position:'relative' }}>
+            <button onClick={() => setModalEditarCliente(false)} style={{ position:'absolute', top:'14px', right:'14px', background:'none', border:'none', color:'#64748b', fontSize:'18px', cursor:'pointer' }}>✕</button>
+            <h2 style={{ fontSize:'15px', marginBottom:'20px', color:'#00ff88' }}>Editar cliente</h2>
+            <form onSubmit={guardarCliente} style={{ display:'flex', flexDirection:'column', gap:'10px' }}>
+              {[
+                { field: 'nombre_completo', label: 'Nombre completo' },
+                { field: 'email', label: 'Email' },
+                { field: 'telefono', label: 'Teléfono' },
+                { field: 'direccion', label: 'Dirección' },
+                { field: 'ciudad', label: 'Ciudad' },
+                { field: 'zip', label: 'ZIP' },
+              ].map(({ field, label }) => (
+                <div key={field}>
+                  <label style={{ display:'block', fontSize:'10px', color:'#00ff88', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>{label}</label>
+                  <input value={editForm[field]} onChange={e => setEditForm(prev => ({ ...prev, [field]: e.target.value }))}
+                    style={{ width:'100%', padding:'9px 12px', background:'#0a0f1e', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'7px', color:'#e2e8f0', fontSize:'13px', boxSizing:'border-box' }} />
+                </div>
+              ))}
+              <div>
+                <label style={{ display:'block', fontSize:'10px', color:'#00ff88', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>Estado del caso</label>
+                <select value={editForm.estado_caso} onChange={e => setEditForm(prev => ({ ...prev, estado_caso: e.target.value }))}
+                  style={{ width:'100%', padding:'9px 12px', background:'#0a0f1e', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'7px', color:'#e2e8f0', fontSize:'13px' }}>
+                  <option value="activo">Activo</option>
+                  <option value="en_proceso">En proceso</option>
+                  <option value="completado">Completado</option>
+                  <option value="inactivo">Inactivo</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ display:'block', fontSize:'10px', color:'#00ff88', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>Notas</label>
+                <textarea value={editForm.notas} onChange={e => setEditForm(prev => ({ ...prev, notas: e.target.value }))} rows={3}
+                  style={{ width:'100%', padding:'9px 12px', background:'#0a0f1e', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'7px', color:'#e2e8f0', fontSize:'13px', boxSizing:'border-box', resize:'vertical' }} />
+              </div>
+              {error && <p style={{ color:'#f87171', fontSize:'12px', margin:0 }}>{error}</p>}
+              <button type="submit" disabled={guardandoCliente}
+                style={{ padding:'10px', background: guardandoCliente ? 'rgba(0,255,136,0.2)' : 'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', marginTop:'4px' }}>
+                {guardandoCliente ? 'Guardando...' : 'Guardar cambios'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Modal carta */}
       {cartaAbierta && (
@@ -262,10 +363,16 @@ export default function DetalleClientePage() {
                   <div style={{ fontSize:'13px', fontWeight:'bold', color:'#f1f5f9' }}>{c.tipo_carta.replace(/_/g,' ')}</div>
                   <div style={{ fontSize:'11px', color:'#475569', marginTop:'3px' }}>{c.destinatario} · {c.estado}</div>
                 </div>
-                <button onClick={() => exportarCarta(c.id)} disabled={exportandoCarta === c.id}
-                  style={{ padding:'4px 10px', background:'rgba(56,189,248,0.1)', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'6px', color:'#38bdf8', fontSize:'11px', cursor:'pointer', flexShrink:0 }}>
-                  {exportandoCarta === c.id ? '...' : '↓ Export'}
-                </button>
+                <div style={{ display:'flex', gap:'6px', flexShrink:0 }}>
+                  <button onClick={() => exportarCarta(c.id)} disabled={exportandoCarta === c.id}
+                    style={{ padding:'4px 10px', background:'rgba(56,189,248,0.1)', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'6px', color:'#38bdf8', fontSize:'11px', cursor:'pointer' }}>
+                    {exportandoCarta === c.id ? '...' : '↓ Export'}
+                  </button>
+                  <button onClick={() => borrarCarta(c.id)} disabled={borrrandoCarta === c.id}
+                    style={{ padding:'4px 10px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'6px', color:'#f87171', fontSize:'11px', cursor:'pointer' }}>
+                    {borrrandoCarta === c.id ? '...' : 'Borrar'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}

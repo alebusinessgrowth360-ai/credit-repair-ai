@@ -124,4 +124,14 @@ router.put('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 })
 
+router.delete('/:id', requireAuth, async (req: AuthRequest, res: Response) => {
+  const { id } = req.params
+  try {
+    await pool.query('DELETE FROM cartas WHERE id = $1', [id])
+    res.json({ data: { deleted: true }, error: null })
+  } catch (err: any) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 export default router
