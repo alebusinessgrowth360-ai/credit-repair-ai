@@ -121,7 +121,14 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae TODOS los hard inquiries. Para cada uno incluye: empresa (nombre exacto), fecha (MM/YYYY), buro (TransUnion, Equifax, o Experian — SIEMPRE asignar), tipo ("hard"), y relacionado_con_cuenta (true si el cliente tiene una cuenta activa o cerrada con ese mismo acreedor, false si no existe ninguna cuenta relacionada). El campo "relacionado_con_cuenta" es crítico — compara el nombre de la empresa del inquiry contra TODOS los acreedores en la lista de cuentas.
+3. Extrae TODOS los hard inquiries. Para cada uno incluye: empresa (nombre exacto), fecha (MM/YYYY), buro (TransUnion, Equifax, o Experian — SIEMPRE asignar según las instrucciones de formato de columnas de abajo), tipo ("hard"), y relacionado_con_cuenta (true si el cliente tiene una cuenta activa o cerrada con ese mismo acreedor, false si no existe ninguna cuenta relacionada). El campo "relacionado_con_cuenta" es crítico — compara el nombre de la empresa del inquiry contra TODOS los acreedores en la lista de cuentas.
+
+   FORMATO DE INQUIRIES EN PDF DE 3 COLUMNAS — MUY IMPORTANTE:
+   Al igual que las cuentas, los inquiries en reportes como Credit Hero Score, IdentityIQ y SmartCredit aparecen en una sección por buró. Cuando el PDF se aplana a texto, los inquiries de los 3 burós aparecen en secuencia. Para atribuir correctamente el buró:
+   - Busca headers explícitos como "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries" o simplemente el nombre del buró como separador de sección.
+   - Si no hay headers explícitos pero los inquiries aparecen en grupos de 3 repetidos con la misma empresa y fecha, asigna el orden: primero=TransUnion, segundo=Equifax, tercero=Experian.
+   - Si una empresa aparece solo en un buró (no repetida), usa el contexto del bloque de texto donde aparece para determinar el buró.
+   - NUNCA asignes TransUnion por defecto — cada inquiry DEBE tener su buró real identificado.
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
 5. Si el reporte muestra datos personales separados por buró (Experian / Equifax / TransUnion), extrae lo que cada buró reporta por separado para detectar diferencias.
