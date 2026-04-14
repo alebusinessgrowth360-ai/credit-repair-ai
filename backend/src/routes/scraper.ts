@@ -72,16 +72,22 @@ async function scrapeReport(email: string, password: string) {
     // Wait for the page JS to create the bureau report divs
     await new Promise(r => setTimeout(r, 8000))
 
-    // Check if divs exist now
-    const divsExist = await page.evaluate(new Function(`
+    // Log full page structure to understand what's actually there
+    const pageInfo = await page.evaluate(new Function(`
+      var allIds = Array.from(document.querySelectorAll('[id]')).map(function(el) { return el.id; });
+      var allLinks = Array.from(document.querySelectorAll('a[href]')).map(function(a) { return a.href; }).filter(function(h) { return h.includes('creditheroscore'); });
       return {
-        tui: !!document.getElementById('report-transunion-body'),
-        exp: !!document.getElementById('report-experian-body'),
-        efx: !!document.getElementById('report-equifax-body'),
-        title: document.title
+        title: document.title,
+        url: window.location.href,
+        ids: allIds.slice(0, 50),
+        links: allLinks.slice(0, 20),
+        bodySnippet: document.body.innerHTML.replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').substring(0, 3000)
       }
     `) as () => any)
-    console.log('[SCRAPER] Divs exist:', JSON.stringify(divsExist))
+    console.log('[SCRAPER] Page title:', pageInfo.title)
+    console.log('[SCRAPER] IDs on page:', JSON.stringify(pageInfo.ids))
+    console.log('[SCRAPER] Links:', JSON.stringify(pageInfo.links))
+    console.log('[SCRAPER] Body snippet:', pageInfo.bodySnippet.substring(0, 1000))
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
     // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
