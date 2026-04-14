@@ -66,9 +66,24 @@ async function login(email: string, password: string): Promise<CookieJar> {
 }
 
 async function fetchBureauReport(jar: CookieJar, ajaxAction: string): Promise<string> {
-  // First GET the report page to establish page context/cookies
   const params = new URLSearchParams({ ajax: 'true', ajaxAction })
-  const res = await httpPost(`${BASE}${REPORT_PATH}`, params, jar, `${BASE}${REPORT_PATH}`)
+  const cookieString = await jar.getCookieString(`${BASE}${REPORT_PATH}`)
+  const res = await axios.post(`${BASE}${REPORT_PATH}`, params.toString(), {
+    headers: {
+      'User-Agent': UA,
+      'Accept': '*/*',
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+      'Referer': `${BASE}${REPORT_PATH}`,
+      'Origin': BASE,
+      'Cookie': cookieString
+    },
+    maxRedirects: 5,
+    validateStatus: () => true
+  })
+  for (const c of (res.headers['set-cookie'] || [])) {
+    await jar.setCookie(c, BASE).catch(() => {})
+  }
   return String(res.data)
 }
 
