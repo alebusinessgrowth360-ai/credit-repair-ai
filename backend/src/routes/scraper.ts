@@ -1,191 +1,142 @@
 import { Router, Response } from 'express'
-import axios, { AxiosResponse } from 'axios'
-import { CookieJar } from 'tough-cookie'
 import * as cheerio from 'cheerio'
 import { requireAuth, AuthRequest } from '../middleware/auth'
 
 const router = Router()
 
 const BASE = 'https://www.creditheroscore.com'
-const REPORT_PATH = '/cp6/mcc_creditreports_v2.asp'
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+const CHROME = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser'
 
-async function httpGet(url: string, jar: CookieJar): Promise<AxiosResponse> {
-  const cookieString = await jar.getCookieString(url)
-  const res = await axios.get(url, {
-    headers: { 'User-Agent': UA, 'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8', 'Cookie': cookieString },
-    maxRedirects: 10,
-    validateStatus: () => true
+async function scrapeReport(email: string, password: string) {
+  // Import puppeteer-core dynamically to avoid issues at module load time
+  const puppeteer = await import('puppeteer-core')
+
+  const browser = await puppeteer.default.launch({
+    executablePath: CHROME,
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-first-run',
+      '--no-zygote',
+      '--single-process'
+    ]
   })
-  for (const c of (res.headers['set-cookie'] || [])) {
-    await jar.setCookie(c, new URL(url).origin).catch(() => {})
+
+  try {
+    const page = await browser.newPage()
+    await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    await page.setViewport({ width: 1280, height: 800 })
+
+    // Step 1: Login
+    await page.goto(`${BASE}/customer_login.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
+    await page.type('#username', email, { delay: 30 })
+    await page.type('#password', password, { delay: 30 })
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 30000 }),
+      page.click('.btn.login')
+    ])
+
+    // Detect login failure
+    const stillOnLogin = await page.$('input[name="password"]')
+    if (stillOnLogin) throw new Error('Email o contraseña incorrectos.')
+
+    // Step 2: Navigate to credit report page
+    await page.goto(`${BASE}/cp6/mcc_creditreports_v2.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
+
+    // Step 3: Wait for bureau tabs/sections to appear and trigger loading
+    // The page loads report data lazily when tabs are clicked
+    await new Promise(r => setTimeout(r, 3000))
+
+    // Try to find and click tabs to load each bureau's data
+    const tabSelectors = [
+      '#transunion-tab, [href="#transunion"], [data-target="#transunion"], .nav-tab-transunion',
+      '#equifax-tab, [href="#equifax"], [data-target="#equifax"], .nav-tab-equifax',
+      '#experian-tab, [href="#experian"], [data-target="#experian"], .nav-tab-experian',
+    ]
+
+    for (const sel of tabSelectors) {
+      try {
+        const tab = await page.$(sel)
+        if (tab) {
+          await tab.click()
+          await new Promise(r => setTimeout(r, 2000))
+        }
+      } catch (_) {}
+    }
+
+    // Step 4: Wait for report bodies to load
+    await new Promise(r => setTimeout(r, 5000))
+
+    // Step 5: Get each bureau's report via jQuery AJAX (exactly what the browser JS does)
+    function makeBureauCall(ajaxAction: string) {
+      return `new Promise(function(resolve) {
+        var jq = window.jQuery || window.$;
+        if (!jq) { resolve(''); return; }
+        jq.post('mcc_creditreports_v2.asp', {
+          ajax: 'true', ajaxAction: '${ajaxAction}', historyReportID: ''
+        }, function(data) { resolve(data); }).fail(function() { resolve(''); });
+      })`
+    }
+
+    const tuiHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_TUI')}`) as () => Promise<string>)
+    const expHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_EXP')}`) as () => Promise<string>)
+    const efxHTML: string = await page.evaluate(new Function(`return ${makeBureauCall('MCC_CreditReport_EFX')}`) as () => Promise<string>)
+
+    console.log('[SCRAPER] TUI:', tuiHTML.length, 'EXP:', expHTML.length, 'EFX:', efxHTML.length)
+    console.log('[SCRAPER] TUI sample:', tuiHTML.substring(0, 300))
+
+    return { tuiHTML, expHTML, efxHTML }
+  } finally {
+    await browser.close()
   }
-  return res
 }
 
-async function httpPost(url: string, body: URLSearchParams | string, jar: CookieJar, referer?: string): Promise<AxiosResponse> {
-  const cookieString = await jar.getCookieString(url)
-  const res = await axios.post(url, body.toString(), {
-    headers: {
-      'User-Agent': UA,
-      'Accept': 'text/html,application/xhtml+xml,*/*;q=0.8',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      ...(referer ? { 'Referer': referer } : {}),
-      'Cookie': cookieString
-    },
-    maxRedirects: 10,
-    validateStatus: () => true
-  })
-  for (const c of (res.headers['set-cookie'] || [])) {
-    await jar.setCookie(c, new URL(url).origin).catch(() => {})
-  }
-  return res
-}
-
-async function login(email: string, password: string): Promise<{ jar: CookieJar; matchGUID: string; customerGroupID: string }> {
-  const jar = new CookieJar()
-
-  // GET login page to get tGUID + session cookies
-  const loginPage = await httpGet(`${BASE}/customer_login.asp`, jar)
-  const $login = cheerio.load(loginPage.data)
-  const tGUID = $login('input[name="tGUID"]').val() as string
-  if (!tGUID) throw new Error('No se pudo obtener el token de sesión. Intenta de nuevo.')
-
-  // POST credentials
-  const params = new URLSearchParams({ tGUID, path: '', sourcedomain: '', returl: '', username: email, password })
-  const loginRes = await httpPost(`${BASE}/customer_login.asp?`, params, jar, `${BASE}/customer_login.asp`)
-
-  // Detect login failure
-  const $check = cheerio.load(loginRes.data)
-  if ($check('input[name="password"]').length > 0) {
-    const errText = $check('.alert, .error, [class*="error"], [class*="alert"]').text().trim()
-    throw new Error(errText || 'Email o contraseña incorrectos.')
-  }
-
-  // Extract matchGUID and customerGroupID from the member area page
-  const memberHTML = loginRes.data as string
-  const $member = cheerio.load(memberHTML)
-  const matchGUID = $member('#matchGUID').text().trim() || $member('[id="matchGUID"]').text().trim()
-  const customerGroupID = $member('[data-field-name="CustomerGroupID"]').attr('data-field-val') || ''
-
-  console.log('[SCRAPER] matchGUID:', matchGUID, '| customerGroupID:', customerGroupID)
-
-  return { jar, matchGUID, customerGroupID }
-}
-
-async function fetchBureauReport(jar: CookieJar, ajaxAction: string): Promise<string> {
-  const params = new URLSearchParams({ ajax: 'true', ajaxAction })
-  const cookieString = await jar.getCookieString(`${BASE}${REPORT_PATH}`)
-  const res = await axios.post(`${BASE}${REPORT_PATH}`, params.toString(), {
-    headers: {
-      'User-Agent': UA,
-      'Accept': '*/*',
-      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-      'X-Requested-With': 'XMLHttpRequest',
-      'Referer': `${BASE}${REPORT_PATH}`,
-      'Origin': BASE,
-      'Cookie': cookieString
-    },
-    maxRedirects: 5,
-    validateStatus: () => true
-  })
-  for (const c of (res.headers['set-cookie'] || [])) {
-    await jar.setCookie(c, BASE).catch(() => {})
-  }
-  return String(res.data)
-}
-
-function parseInquiriesFromBureauHTML(html: string, buro: string): Array<{ empresa: string; fecha: string }> {
+function parseInquiries(html: string): Array<{ empresa: string; fecha: string }> {
+  if (!html || html.length < 100) return []
   const $ = cheerio.load(html)
   const results: Array<{ empresa: string; fecha: string }> = []
+  const dateRe = /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4}/i
 
-  // Inquiries section: look for a table or section with "Inquiries" heading
-  // Each row is one inquiry with company name and date
-  let inInquirySection = false
+  $('td, tr, div').each((_i, el) => {
+    const text = $(el).clone().children().remove().end().text().replace(/\s+/g, ' ').trim()
+    if (!text || text.length > 200 || text.length < 3) return
+    if (text.match(/total|count|bureau|inquir|credit score|address|balance|account|why is/i)) return
 
-  $('tr, div[class*="inquiry"], div[class*="Inquiry"]').each((_i, el) => {
-    const text = $(el).text().replace(/\s+/g, ' ').trim()
-
-    if (text.match(/hard\s+inquir|inquiries/i)) {
-      inInquirySection = true
-      return
-    }
-
-    if (inInquirySection && text.length > 2 && text.length < 200) {
-      // Try to extract company + date
-      const dateMatch = text.match(/(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4})/i)
-      if (dateMatch) {
-        let empresa = text.substring(0, text.indexOf(dateMatch[0])).trim().replace(/[,\s]+$/, '').trim()
-        const d = new Date(dateMatch[0].replace(',', ''))
-        let fecha = ''
-        if (!isNaN(d.getTime())) {
-          fecha = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-        } else {
-          fecha = dateMatch[0]
-        }
-        if (empresa && empresa.length > 1) {
-          results.push({ empresa, fecha })
-        }
-      }
+    const m = text.match(dateRe)
+    if (m) {
+      let empresa = text.substring(0, text.indexOf(m[0])).trim().replace(/[,\s]+$/, '').trim()
+      if (!empresa || empresa.length < 2) return
+      const d = new Date(m[0].replace(',', ''))
+      const fecha = !isNaN(d.getTime())
+        ? `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+        : m[0]
+      results.push({ empresa, fecha })
     }
   })
-
-  // Fallback: scan all table rows for lines that look like inquiry entries (company + date)
-  if (results.length === 0) {
-    $('td, th').each((_i, el) => {
-      const text = $(el).text().replace(/\s+/g, ' ').trim()
-      const dateMatch = text.match(/(\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{1,2},?\s*\d{4}|\d{1,2}\/\d{1,2}\/\d{4})/i)
-      if (dateMatch && text.length < 150 && text.length > 5) {
-        let empresa = text.substring(0, text.indexOf(dateMatch[0])).trim().replace(/[,\s]+$/, '').trim()
-        if (empresa && empresa.length > 1 && !empresa.match(/total|count|bureau|inquir|credit score/i)) {
-          const d = new Date(dateMatch[0].replace(',', ''))
-          let fecha = ''
-          if (!isNaN(d.getTime())) {
-            fecha = `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-          } else {
-            fecha = dateMatch[0]
-          }
-          results.push({ empresa, fecha })
-        }
-      }
-    })
-  }
 
   return results
 }
 
-function parseScoreFromBureauHTML(html: string): number {
+function parseScore(html: string): number {
+  if (!html || html.length < 100) return 0
   const $ = cheerio.load(html)
 
-  // Look for score in data-score attribute (slider element) or .slider, .score-holder, etc.
   let score = 0
-
   $('[data-score]').each((_i, el) => {
     const s = parseInt($(el).attr('data-score') || '0')
-    if (s >= 300 && s <= 850) { score = s; return false }
+    if (s >= 300 && s <= 850 && !score) score = s
   })
 
   if (!score) {
-    $('[class*="score"], [class*="Score"]').each((_i, el) => {
-      const text = $(el).text().trim()
-      const match = text.match(/^(\d{3})$/)
-      if (match) {
-        const s = parseInt(match[1])
-        if (s >= 300 && s <= 850) { score = s; return false }
-      }
-    })
-  }
-
-  // Last resort: find standalone 3-digit number between 300-850
-  if (!score) {
-    const text = $.html()
-    const matches = text.match(/\b([3-8]\d{2})\b/g) || []
+    const matches = html.match(/\b([3-8]\d{2})\b/g) || []
     for (const m of matches) {
       const s = parseInt(m)
       if (s >= 300 && s <= 850) { score = s; break }
     }
   }
-
   return score
 }
 
@@ -195,52 +146,18 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
   if (!email || !password) return res.status(400).json({ error: 'Se requieren email y contraseña del cliente' })
 
   try {
-    const { jar, matchGUID, customerGroupID } = await login(email, password)
-
-    // Step 2: Call the fulfillment API to activate credit data in the session
-    // This is what the browser JS calls before making the credit report AJAX calls
-    if (matchGUID && customerGroupID) {
-      const fulfillParams = new URLSearchParams({
-        customerGroupID,
-        customerGUID: matchGUID,
-        retryAttempt: '0',
-        returnUserToken: '1'
-      })
-      const fulfillRes = await httpPost(
-        `${BASE}/services/serv_proxy_efficient_fulfillment_array.asp`,
-        fulfillParams,
-        jar,
-        `${BASE}${REPORT_PATH}`
-      )
-      console.log('[SCRAPER] Fulfillment response length:', String(fulfillRes.data).length, '| status:', fulfillRes.status)
-      console.log('[SCRAPER] Fulfillment sample:', String(fulfillRes.data).substring(0, 500))
-    }
-
-    // Step 3: GET the report page to set session context
-    await httpGet(`${BASE}${REPORT_PATH}`, jar)
-
-    // Step 4: Fetch each bureau's report via the AJAX endpoints discovered in the JS
-    const [tuiHTML, expHTML, efxHTML] = await Promise.all([
-      fetchBureauReport(jar, 'MCC_CreditReport_TUI'),
-      fetchBureauReport(jar, 'MCC_CreditReport_EXP'),
-      fetchBureauReport(jar, 'MCC_CreditReport_EFX'),
-    ])
-
-    console.log('[SCRAPER] TUI HTML length:', tuiHTML.length, '| EXP:', expHTML.length, '| EFX:', efxHTML.length)
-    console.log('[SCRAPER] TUI sample:', tuiHTML.substring(0, 500))
-    console.log('[SCRAPER] EXP sample:', expHTML.substring(0, 300))
-    console.log('[SCRAPER] EFX sample:', efxHTML.substring(0, 300))
+    const { tuiHTML, expHTML, efxHTML } = await scrapeReport(email, password)
 
     const inquiries = {
-      TransUnion: parseInquiriesFromBureauHTML(tuiHTML, 'TransUnion'),
-      Experian:   parseInquiriesFromBureauHTML(expHTML, 'Experian'),
-      Equifax:    parseInquiriesFromBureauHTML(efxHTML, 'Equifax'),
+      TransUnion: parseInquiries(tuiHTML),
+      Experian:   parseInquiries(expHTML),
+      Equifax:    parseInquiries(efxHTML),
     }
 
     const scores = {
-      TransUnion: parseScoreFromBureauHTML(tuiHTML),
-      Experian:   parseScoreFromBureauHTML(expHTML),
-      Equifax:    parseScoreFromBureauHTML(efxHTML),
+      TransUnion: parseScore(tuiHTML),
+      Experian:   parseScore(expHTML),
+      Equifax:    parseScore(efxHTML),
       general:    0
     }
     const vals = [scores.TransUnion, scores.Experian, scores.Equifax].filter(s => s > 0)
@@ -248,10 +165,7 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
 
     const totalInquiries = inquiries.TransUnion.length + inquiries.Experian.length + inquiries.Equifax.length
 
-    res.json({
-      data: { scores, inquiries, total_inquiries: totalInquiries },
-      error: null
-    })
+    res.json({ data: { scores, inquiries, total_inquiries: totalInquiries }, error: null })
   } catch (err: any) {
     console.error('[SCRAPER] Error:', err.message)
     res.status(400).json({ error: err.message })
