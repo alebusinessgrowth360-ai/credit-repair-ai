@@ -88,7 +88,18 @@ async function scrapeReport(email: string, password: string) {
       `) as () => void)
     ])
     console.log('[SCRAPER] After form submit URL:', page.url())
-    await new Promise(r => setTimeout(r, 5000))
+    await new Promise(r => setTimeout(r, 15000))
+
+    // Log post-submit page structure
+    const postSubmitInfo = await page.evaluate(new Function(`
+      var ids = Array.from(document.querySelectorAll('[id]')).map(function(el) { return el.id; });
+      var bodySnippet = document.body ? document.body.innerHTML.substring(0, 3000) : '';
+      var divsWithReport = Array.from(document.querySelectorAll('[id*="report"],[id*="bureau"],[id*="tui"],[id*="exp"],[id*="efx"],[class*="report"],[class*="bureau"]')).slice(0,20).map(function(el) { return { id: el.id, cls: el.className.substring(0,80) }; });
+      return { ids: ids, bodySnippet: bodySnippet, divsWithReport: divsWithReport };
+    `) as () => any)
+    console.log('[SCRAPER] Post-submit IDs:', JSON.stringify(postSubmitInfo.ids))
+    console.log('[SCRAPER] Post-submit report divs:', JSON.stringify(postSubmitInfo.divsWithReport))
+    console.log('[SCRAPER] Post-submit body snippet:', postSubmitInfo.bodySnippet)
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
     // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
