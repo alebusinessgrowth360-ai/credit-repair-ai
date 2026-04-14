@@ -72,22 +72,24 @@ async function scrapeReport(email: string, password: string) {
     // Wait for the page JS to create the bureau report divs
     await new Promise(r => setTimeout(r, 8000))
 
-    // Log full page structure to understand what's actually there
-    const pageInfo = await page.evaluate(new Function(`
-      var allIds = Array.from(document.querySelectorAll('[id]')).map(function(el) { return el.id; });
-      var allLinks = Array.from(document.querySelectorAll('a[href]')).map(function(a) { return a.href; }).filter(function(h) { return h.includes('creditheroscore'); });
+    // Inspect the report selector elements
+    const reportInfo = await page.evaluate(new Function(`
+      var cp7Link = document.getElementById('cp7-credit-report-link');
+      var selector = document.getElementById('reportSelector');
+      var form = document.getElementById('reportForm');
+      var selectorOptions = selector ? Array.from(selector.options || selector.querySelectorAll('option')).map(function(o) { return { value: o.value, text: o.text }; }) : [];
       return {
-        title: document.title,
-        url: window.location.href,
-        ids: allIds.slice(0, 50),
-        links: allLinks.slice(0, 20),
-        bodySnippet: document.body.innerHTML.replace(/<script[\\s\\S]*?<\\/script>/gi,'').replace(/<style[\\s\\S]*?<\\/style>/gi,'').substring(0, 3000)
+        cp7LinkHref: cp7Link ? cp7Link.href || cp7Link.getAttribute('href') || cp7Link.outerHTML : 'NOT FOUND',
+        selectorOptions: selectorOptions,
+        formAction: form ? form.action : 'NOT FOUND',
+        formMethod: form ? form.method : '',
+        formInputs: form ? Array.from(form.querySelectorAll('input,select')).map(function(el) { return { name: el.name, value: el.value, type: el.type }; }) : []
       }
     `) as () => any)
-    console.log('[SCRAPER] Page title:', pageInfo.title)
-    console.log('[SCRAPER] IDs on page:', JSON.stringify(pageInfo.ids))
-    console.log('[SCRAPER] Links:', JSON.stringify(pageInfo.links))
-    console.log('[SCRAPER] Body snippet:', pageInfo.bodySnippet.substring(0, 1000))
+    console.log('[SCRAPER] cp7 link:', reportInfo.cp7LinkHref)
+    console.log('[SCRAPER] Selector options:', JSON.stringify(reportInfo.selectorOptions))
+    console.log('[SCRAPER] Form action:', reportInfo.formAction, '| method:', reportInfo.formMethod)
+    console.log('[SCRAPER] Form inputs:', JSON.stringify(reportInfo.formInputs))
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
     // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
