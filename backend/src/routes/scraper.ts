@@ -72,24 +72,23 @@ async function scrapeReport(email: string, password: string) {
     // Wait for the page JS to create the bureau report divs
     await new Promise(r => setTimeout(r, 8000))
 
-    // Inspect the report selector elements
-    const reportInfo = await page.evaluate(new Function(`
-      var cp7Link = document.getElementById('cp7-credit-report-link');
-      var selector = document.getElementById('reportSelector');
-      var form = document.getElementById('reportForm');
-      var selectorOptions = selector ? Array.from(selector.options || selector.querySelectorAll('option')).map(function(o) { return { value: o.value, text: o.text }; }) : [];
-      return {
-        cp7LinkHref: cp7Link ? cp7Link.href || cp7Link.getAttribute('href') || cp7Link.outerHTML : 'NOT FOUND',
-        selectorOptions: selectorOptions,
-        formAction: form ? form.action : 'NOT FOUND',
-        formMethod: form ? form.method : '',
-        formInputs: form ? Array.from(form.querySelectorAll('input,select')).map(function(el) { return { name: el.name, value: el.value, type: el.type }; }) : []
-      }
-    `) as () => any)
-    console.log('[SCRAPER] cp7 link:', reportInfo.cp7LinkHref)
-    console.log('[SCRAPER] Selector options:', JSON.stringify(reportInfo.selectorOptions))
-    console.log('[SCRAPER] Form action:', reportInfo.formAction, '| method:', reportInfo.formMethod)
-    console.log('[SCRAPER] Form inputs:', JSON.stringify(reportInfo.formInputs))
+    // Get the report GUID from the selector
+    const reportGUID: string = await page.evaluate(new Function(`
+      var sel = document.getElementById('reportSelector');
+      return sel ? sel.value : '';
+    `) as () => string)
+    console.log('[SCRAPER] Report GUID:', reportGUID)
+    if (!reportGUID) throw new Error('No se encontró ningún reporte disponible en esta cuenta.')
+
+    // Submit the form with the report GUID — this loads the full 3-column credit report
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 40000 }),
+      page.evaluate(new Function(`
+        document.getElementById('reportForm').submit();
+      `) as () => void)
+    ])
+    console.log('[SCRAPER] After form submit URL:', page.url())
+    await new Promise(r => setTimeout(r, 5000))
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
     // Wait up to 20 seconds for each bureau div to get loaded="1" attribute
