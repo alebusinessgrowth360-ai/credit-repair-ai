@@ -121,7 +121,9 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae ABSOLUTAMENTE TODOS los hard inquiries separados por buró. El reporte tiene secciones claramente separadas: una sección para TransUnion, una para Equifax, una para Experian (busca headers como "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Coloca cada inquiry en el array del buró que corresponde. Para cada inquiry: empresa (nombre exacto), fecha (MM/YYYY), relacionado_con_cuenta (true si existe cuenta con ese acreedor, false si no). NO repitas el mismo inquiry en múltiples burós.
+3. Extrae ABSOLUTAMENTE TODOS los hard inquiries separados por buró. El reporte tiene secciones separadas por buró (busca "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Coloca cada inquiry en el array del buró correcto. NO repitas el mismo inquiry en múltiples burós.
+   Para cada inquiry: empresa (nombre exacto), fecha (MM/YYYY), relacionado_con_cuenta.
+   CÓMO DETERMINAR relacionado_con_cuenta: Revisa el array de cuentas que ya extrajiste. Si el nombre de la empresa del inquiry coincide (exacto o muy similar) con el nombre de algún acreedor en cuentas → true. Si no existe ninguna cuenta con ese acreedor en todo el reporte → false. Este campo es OBLIGATORIO y debe ser true o false según la comparación real, no el valor por defecto.
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
 5. Si el reporte muestra datos personales separados por buró (Experian / Equifax / TransUnion), extrae lo que cada buró reporta por separado para detectar diferencias.

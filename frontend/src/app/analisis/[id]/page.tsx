@@ -630,8 +630,25 @@ export default function AnalisisPage() {
           { name: 'Experian',   color: '#818cf8', border: 'rgba(129,140,248,0.25)', bg: 'rgba(129,140,248,0.04)', pill: 'rgba(129,140,248,0.12)' },
         ]
 
-        // Use AI-assigned field: relacionado_con_cuenta=false means no active account matches this inquiry
-        const disputableInquiries = hardInquiries.filter((q: any) => q.relacionado_con_cuenta === false)
+        // Simple substring match as fallback when AI doesn't set relacionado_con_cuenta
+        const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim()
+        const creditorNames = cuentas.map((c: any) => norm(c.acreedor || ''))
+        const matchesAccount = (empresa: string) => {
+          const n = norm(empresa)
+          if (n.length < 4) return false
+          return creditorNames.some(cn => cn.length >= 4 && (cn.includes(n) || n.includes(cn)))
+        }
+
+        const disputableInquiries = hardInquiries.filter((q: any) => {
+          // If AI explicitly marked it, trust that
+          if (q.relacionado_con_cuenta === true) return false
+          if (q.relacionado_con_cuenta === false) {
+            // Double-check with frontend match — if AI says false but we find a clear match, hide it
+            return !matchesAccount(q.empresa || '')
+          }
+          // Field not set by AI — use frontend matching
+          return !matchesAccount(q.empresa || '')
+        })
         const relatedCount = hardInquiries.length - disputableInquiries.length
 
         // Group by bureau; inquiries with no bureau go to "Unknown"
