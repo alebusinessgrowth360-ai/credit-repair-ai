@@ -35,19 +35,38 @@ async function scrapeReport(email: string, password: string) {
     await page.type('#username', email, { delay: 30 })
     await page.type('#password', password, { delay: 30 })
     await page.click('.btn.login')
-    await new Promise(r => setTimeout(r, 4000))
+    await new Promise(r => setTimeout(r, 5000))
 
-    // Detect login failure by checking if still on login page (URL contains login or form is visible)
-    const currentUrl = page.url()
-    const formVisible = await page.evaluate(new Function(`
-      return !!(document.querySelector('#CFForm_1') || document.querySelector('.btn.login'))
+    // Detect login failure: still on login page = login form with action customer_login exists
+    const afterLoginUrl = page.url()
+    const loginFormStillActive = await page.evaluate(new Function(`
+      var form = document.querySelector('#CFForm_1');
+      if (!form) return false;
+      // Login form has a password input — if hidden or not present, login succeeded
+      var pwd = form.querySelector('input[type="password"]');
+      return !!(pwd && pwd.offsetParent !== null);
     `) as () => boolean)
-    if (currentUrl.includes('customer_login') || formVisible) {
+    console.log('[SCRAPER] After login URL:', afterLoginUrl, '| form active:', loginFormStillActive)
+    if (afterLoginUrl.includes('customer_login') && loginFormStillActive) {
       throw new Error('Email o contraseña incorrectos. Verifica las credenciales del cliente.')
     }
 
     // Step 2: Navigate to credit report page and wait for page JS to initialize
     await page.goto(`${BASE}/cp6/mcc_creditreports_v2.asp`, { waitUntil: 'networkidle2', timeout: 30000 })
+    const reportUrl = page.url()
+    console.log('[SCRAPER] Report page URL:', reportUrl)
+
+    // Check if the expected report divs exist
+    const divsExist = await page.evaluate(new Function(`
+      return {
+        tui: !!document.getElementById('report-transunion-body'),
+        exp: !!document.getElementById('report-experian-body'),
+        efx: !!document.getElementById('report-equifax-body'),
+        title: document.title
+      }
+    `) as () => any)
+    console.log('[SCRAPER] Divs exist:', JSON.stringify(divsExist))
+
     await new Promise(r => setTimeout(r, 5000))
 
     // Step 3: Trigger bureau report loading via jQuery (same as loadCreditReportTUI/EXP/EFX in main.js)
