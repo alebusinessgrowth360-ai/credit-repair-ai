@@ -30,6 +30,12 @@ export default function DetalleClientePage() {
   const [reporteBase, setReporteBase] = useState('')
   const [reporteComp, setReporteComp] = useState('')
   const [resultadoComparacion, setResultadoComparacion] = useState(null)
+  const [modalCreditHero, setModalCreditHero] = useState(false)
+  const [chEmail, setChEmail] = useState('')
+  const [chPassword, setChPassword] = useState('')
+  const [importandoCH, setImportandoCH] = useState(false)
+  const [resultadoCH, setResultadoCH] = useState<any>(null)
+  const [errorCH, setErrorCH] = useState('')
   const router = useRouter()
   const API = process.env.NEXT_PUBLIC_API_URL
 
@@ -177,6 +183,23 @@ export default function DetalleClientePage() {
     finally { setExportandoCarta(null) }
   }
 
+  async function importarCreditHero(e) {
+    e.preventDefault()
+    setImportandoCH(true); setErrorCH(''); setResultadoCH(null)
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/scraper/credit-hero', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ email: chEmail, password: chPassword })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setResultadoCH(data.data)
+    } catch (err: any) { setErrorCH(err.message) }
+    finally { setImportandoCH(false) }
+  }
+
   async function compararReportes(e) {
     e.preventDefault()
     if (!reporteBase || !reporteComp || reporteBase === reporteComp) {
@@ -283,6 +306,75 @@ export default function DetalleClientePage() {
         </div>
       )}
 
+      {/* Modal Credit Hero Score */}
+      {modalCreditHero && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(56,189,248,0.25)', borderRadius:'16px', padding:'28px', maxWidth:'480px', width:'100%', position:'relative' }}>
+            <button onClick={() => { setModalCreditHero(false); setResultadoCH(null); setErrorCH('') }} style={{ position:'absolute', top:'14px', right:'14px', background:'none', border:'none', color:'#64748b', fontSize:'18px', cursor:'pointer' }}>✕</button>
+            <h2 style={{ fontSize:'14px', marginBottom:'4px', color:'#38bdf8' }}>Importar desde Credit Hero Score</h2>
+            <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'20px' }}>Ingresa las credenciales del cliente en creditheroscore.com</p>
+
+            {!resultadoCH ? (
+              <form onSubmit={importarCreditHero} style={{ display:'flex', flexDirection:'column', gap:'12px' }}>
+                <div>
+                  <label style={{ display:'block', fontSize:'10px', color:'#38bdf8', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>Email</label>
+                  <input type="email" value={chEmail} onChange={e => setChEmail(e.target.value)} required placeholder="email@ejemplo.com"
+                    style={{ width:'100%', padding:'9px 12px', background:'#0a0f1e', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'7px', color:'#e2e8f0', fontSize:'13px', boxSizing:'border-box' }} />
+                </div>
+                <div>
+                  <label style={{ display:'block', fontSize:'10px', color:'#38bdf8', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'1px' }}>Contraseña</label>
+                  <input type="password" value={chPassword} onChange={e => setChPassword(e.target.value)} required
+                    style={{ width:'100%', padding:'9px 12px', background:'#0a0f1e', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'7px', color:'#e2e8f0', fontSize:'13px', boxSizing:'border-box' }} />
+                </div>
+                {errorCH && <p style={{ color:'#f87171', fontSize:'12px', margin:0 }}>{errorCH}</p>}
+                <button type="submit" disabled={importandoCH}
+                  style={{ padding:'10px', background: importandoCH ? 'rgba(56,189,248,0.15)' : 'linear-gradient(135deg,#0ea5e9,#38bdf8)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', marginTop:'4px' }}>
+                  {importandoCH ? 'Conectando...' : 'Importar reporte'}
+                </button>
+              </form>
+            ) : (
+              <div>
+                {/* Scores */}
+                <p style={{ fontSize:'11px', color:'#64748b', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'1px' }}>Credit Scores</p>
+                <div style={{ display:'flex', gap:'8px', marginBottom:'20px' }}>
+                  {[['TransUnion','#34d399'],['Equifax','#f87171'],['Experian','#818cf8']].map(([b, color]) => (
+                    <div key={b} style={{ flex:1, textAlign:'center', padding:'10px 6px', background:`rgba(${color === '#34d399' ? '52,211,153' : color === '#f87171' ? '248,113,113' : '129,140,248'},0.1)`, border:`1px solid ${color}44`, borderRadius:'10px' }}>
+                      <div style={{ fontSize:'20px', fontWeight:'bold', color }}>{resultadoCH.scores[b] || '—'}</div>
+                      <div style={{ fontSize:'10px', color:'#64748b', marginTop:'2px' }}>{b === 'TransUnion' ? 'TU' : b === 'Equifax' ? 'EQ' : 'EX'}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Inquiries */}
+                <p style={{ fontSize:'11px', color:'#64748b', marginBottom:'8px', textTransform:'uppercase', letterSpacing:'1px' }}>
+                  Hard Inquiries — Total: {resultadoCH.total_inquiries}
+                </p>
+                {[['TransUnion','#34d399'],['Equifax','#f87171'],['Experian','#818cf8']].map(([b, color]) => {
+                  const list = resultadoCH.inquiries[b] || []
+                  return (
+                    <div key={b} style={{ marginBottom:'12px' }}>
+                      <div style={{ fontSize:'11px', color, fontWeight:'bold', marginBottom:'4px' }}>{b} ({list.length})</div>
+                      {list.length === 0 ? (
+                        <p style={{ fontSize:'11px', color:'#475569', margin:0, paddingLeft:'8px' }}>Ninguno</p>
+                      ) : list.map((q: any, i: number) => (
+                        <div key={i} style={{ fontSize:'11px', color:'#94a3b8', paddingLeft:'8px', lineHeight:'1.7' }}>
+                          {q.empresa} <span style={{ color:'#475569' }}>{q.fecha}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+
+                <button onClick={() => { setResultadoCH(null); setChEmail(''); setChPassword('') }}
+                  style={{ marginTop:'8px', padding:'8px 16px', background:'none', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'8px', color:'#38bdf8', fontSize:'12px', cursor:'pointer', width:'100%' }}>
+                  Importar otro
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Modal carta */}
       {cartaAbierta && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
@@ -314,6 +406,12 @@ export default function DetalleClientePage() {
               {subiendo ? 'Subiendo...' : 'Subir PDF'}
             </button>
           </form>
+
+          {/* Credit Hero Score import */}
+          <button onClick={() => setModalCreditHero(true)}
+            style={{ width:'100%', padding:'10px', background:'rgba(56,189,248,0.06)', border:'1px dashed rgba(56,189,248,0.3)', borderRadius:'10px', color:'#38bdf8', fontSize:'12px', cursor:'pointer', marginBottom:'28px', textAlign:'center' }}>
+            + Importar desde Credit Hero Score
+          </button>
 
           {/* Reportes */}
           <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Reportes ({reportes.length})</h2>

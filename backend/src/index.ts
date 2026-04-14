@@ -15,6 +15,7 @@ import dashboardRoutes from './routes/dashboard'
 import brandingRoutes from './routes/branding'
 import disputasRoutes from './routes/disputas'
 import rapidRescoreRoutes from './routes/rapidRescore'
+import scraperRoutes from './routes/scraper'
 
 dotenv.config()
 
@@ -46,6 +47,7 @@ app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/branding',  brandingRoutes)
 app.use('/api/disputas',      disputasRoutes)
 app.use('/api/rapid-rescore', rapidRescoreRoutes)
+app.use('/api/scraper',      scraperRoutes)
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error('[ERROR]', err.message)

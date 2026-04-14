@@ -121,10 +121,25 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae TODOS los hard inquiries separados por buró (secciones "TransUnion Inquiries", "Equifax Inquiries", "Experian Inquiries"). Para cada inquiry incluye: empresa (nombre exacto), fecha (MM/YYYY). Reglas críticas:
-   - NO omitas ninguno — cuenta todos los que aparecen en el reporte.
-   - NO deduplicques entre burós — si CAPITAL ONE aparece como inquiry en TransUnion Y en Equifax, va en ambos arrays.
-   - Cada sección de buró tiene su propia lista independiente; extráela completa.
+3. Extrae TODOS los hard inquiries separados por buró. Instrucciones detalladas para el formato Credit Hero Score (y similares):
+
+   ESTRUCTURA DE LA SECCIÓN DE INQUIRIES:
+   - El reporte tiene una tabla con 3 columnas: TransUnion | Equifax | Experian
+   - Hay una fila "Total count | X | Y | Z" — estos números son EXACTOS. Debes extraer EXACTAMENTE X inquiries para TransUnion, Y para Equifax, Z para Experian. No más, no menos.
+   - Cada inquiry aparece en UNA SOLA columna (a diferencia de las cuentas que se repiten en los 3 burós). La columna indica a qué buró pertenece.
+   - Las entradas aparecen en orden visual intercalado entre burós — NO están agrupadas por buró.
+
+   CÓMO IDENTIFICAR A QUÉ BURÓ PERTENECE CADA INQUIRY:
+   - Equifax usa nombres FUERTEMENTE abreviados: máximo 8-10 caracteres, sin espacios, ej: ALLYFINANC, GLOBALLEND, WSTLAKENCM, GARYYEOMA, IRMT GCRDT
+   - Experian usa nombres COMPLETOS: ALLY FINANCIAL, GLOBAL LENDING SERVICE, GARY YEOMANS HONDA, CREDIT SOLUTIONS CORP
+   - TransUnion usa nombres MEDIANOS: FOURSIGHT CA, FLAGSHIP CRE, GARY YEOMANS, HUNTINGTON, WATERSTONE M
+   - Si un nombre es muy corto y sin espacios → Equifax. Si es nombre completo con múltiples palabras → Experian. Si es intermedio → TransUnion.
+   - Además del nombre, cada inquiry suele tener un bloque "Creditor information" con el nombre completo de la empresa — úsalo como referencia adicional para identificar el buró.
+
+   REGLAS CRÍTICAS:
+   - NO omitas ninguno — usa el "Total count" como referencia para verificar que extrajiste todos.
+   - NO dedupliques entre burós — si CAPITAL ONE aparece en TransUnion Y en Equifax (con nombres distintos por la abreviación), va en ambos arrays como entradas separadas.
+   - Para cada inquiry incluye: empresa (nombre exacto como aparece en el texto), fecha (MM/YYYY).
 4. Extrae datos personales completos: nombre, SSN parcial, fecha de nacimiento, TODAS las direcciones (actuales y anteriores), empleadores.
 5. Extrae los scores de crédito: busca secciones que digan "Credit Score", "FICO Score", "Score", "VantageScore" u equivalentes. Extrae el score numérico y el buró correspondiente (Experian, Equifax, TransUnion). Si hay un score general o combinado, también extráelo.
 5. Si el reporte muestra datos personales separados por buró (Experian / Equifax / TransUnion), extrae lo que cada buró reporta por separado para detectar diferencias.
