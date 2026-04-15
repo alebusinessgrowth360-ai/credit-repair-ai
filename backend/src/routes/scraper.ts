@@ -136,7 +136,7 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
       const reporte = await pool.query(
         `INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte)
          VALUES ($1, $2, $3, $4, 'otro') RETURNING id`,
-        [cliente_id, nombre, nombre]
+        [cliente_id, nombre, nombre, today]
       )
       const reporteId = reporte.rows[0].id
 
