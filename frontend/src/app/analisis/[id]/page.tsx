@@ -497,9 +497,19 @@ export default function AnalisisPage() {
           { name: 'Equifax',    abbr: 'EQ', color: '#f87171', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)' },
           { name: 'Experian',   abbr: 'EX', color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.45)' },
         ]
+        // Only show negative accounts (collections, charge-offs, derogatory, late, past due)
+        const cuentasNeg = cuentas.filter((c: any) => {
+          const e = (c.estado || '').toLowerCase()
+          const t = (c.tipo_negativo || c.tipo || '').toLowerCase()
+          return c.negativo || t === 'collection' || t === 'charge_off' ||
+            e.includes('collection') || e.includes('charge off') || e.includes('charge-off') ||
+            e.includes('chargeoff') || e.includes('derogatory') || e.includes('past due') ||
+            e.includes('late') || e.includes('transferred')
+        })
+        if (cuentasNeg.length === 0) return null
         // Group by normalized creditor name
         const grouped: Record<string, any[]> = {}
-        cuentas.forEach((c: any) => {
+        cuentasNeg.forEach((c: any) => {
           const key = (c.acreedor || 'unknown').toLowerCase().trim().replace(/\s+/g, ' ')
           if (!grouped[key]) grouped[key] = []
           grouped[key].push(c)
@@ -508,7 +518,7 @@ export default function AnalisisPage() {
         return (
           <div className="print-section" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '20px', marginBottom: '16px' }}>
             <h2 style={{ fontSize: '12px', margin: '0 0 14px', color: '#e2e8f0', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
-              Accounts ({grupos.length}<span style={{ color: '#475569', fontWeight: 'normal' }}> unique · {cuentas.length} total</span>)
+              Negative Accounts ({grupos.length}<span style={{ color: '#475569', fontWeight: 'normal' }}> unique · {cuentasNeg.length} total</span>)
             </h2>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
