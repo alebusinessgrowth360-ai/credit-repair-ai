@@ -21,6 +21,9 @@ export default function DetalleClientePage() {
   const [mensaje, setMensaje] = useState('')
   const [error, setError] = useState('')
   const [cartaAbierta, setCartaAbierta] = useState(null)
+  const [editandoCarta, setEditandoCarta] = useState(false)
+  const [contenidoEditado, setContenidoEditado] = useState('')
+  const [guardandoCarta, setGuardandoCarta] = useState(false)
   const [exportandoCarta, setExportandoCarta] = useState(null)
   const [borrrandoCarta, setBorrrandoCarta] = useState(null)
   const [modalEditarCliente, setModalEditarCliente] = useState(false)
@@ -181,6 +184,26 @@ export default function DetalleClientePage() {
       descargarHTML(data.data.html, data.data.filename)
     } catch (err) { setError(err.message) }
     finally { setExportandoCarta(null) }
+  }
+
+  async function guardarCarta() {
+    if (!cartaAbierta) return
+    setGuardandoCarta(true)
+    const token = getToken()
+    try {
+      const res = await fetch(API + '/cartas/' + cartaAbierta.id, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ contenido: contenidoEditado })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      const updated = { ...cartaAbierta, contenido: contenidoEditado }
+      setCartaAbierta(updated)
+      setCartas(prev => prev.map(c => c.id === cartaAbierta.id ? updated : c))
+      setEditandoCarta(false)
+    } catch (err: any) { setError(err.message) }
+    finally { setGuardandoCarta(false) }
   }
 
   async function importarCreditHero(e) {
@@ -386,12 +409,56 @@ export default function DetalleClientePage() {
 
       {/* Modal carta */}
       {cartaAbierta && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.9)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'40px' }}>
-          <div style={{ background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'16px', padding:'32px', maxWidth:'700px', width:'100%', maxHeight:'80vh', overflowY:'auto', position:'relative' }}>
-            <button onClick={() => setCartaAbierta(null)} style={{ position:'absolute', top:'16px', right:'16px', background:'none', border:'none', color:'#64748b', fontSize:'20px', cursor:'pointer' }}>✕</button>
-            <h2 style={{ fontSize:'16px', marginBottom:'8px', color:'#00ff88' }}>{cartaAbierta.tipo_carta.replace(/_/g,' ')}</h2>
-            <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'20px' }}>{cartaAbierta.destinatario} · {cartaAbierta.estado}</p>
-            <pre style={{ fontSize:'13px', lineHeight:'1.7', whiteSpace:'pre-wrap', color:'#e2e8f0', background:'rgba(255,255,255,0.03)', padding:'16px', borderRadius:'8px' }}>{cartaAbierta.contenido}</pre>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.92)', zIndex:100, display:'flex', alignItems:'center', justifyContent:'center', padding:'24px' }}>
+          <div style={{ background:'#0d1117', border:'1px solid rgba(0,255,136,0.2)', borderRadius:'16px', padding:'28px', maxWidth:'760px', width:'100%', maxHeight:'90vh', display:'flex', flexDirection:'column', position:'relative' }}>
+            {/* Header */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'16px', flexShrink:0 }}>
+              <div>
+                <h2 style={{ fontSize:'15px', marginBottom:'4px', color:'#00ff88' }}>{cartaAbierta.tipo_carta.replace(/_/g,' ')}</h2>
+                <p style={{ fontSize:'12px', color:'#64748b' }}>{cartaAbierta.destinatario} · {cartaAbierta.estado}</p>
+              </div>
+              <button onClick={() => { setCartaAbierta(null); setEditandoCarta(false) }} style={{ background:'none', border:'none', color:'#64748b', fontSize:'20px', cursor:'pointer', lineHeight:1 }}>✕</button>
+            </div>
+
+            {/* Content area */}
+            <div style={{ flex:1, overflowY:'auto', marginBottom:'16px' }}>
+              {editandoCarta ? (
+                <textarea
+                  value={contenidoEditado}
+                  onChange={e => setContenidoEditado(e.target.value)}
+                  style={{ width:'100%', minHeight:'420px', fontSize:'13px', lineHeight:'1.7', color:'#e2e8f0', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(0,255,136,0.25)', borderRadius:'8px', padding:'14px', resize:'vertical', fontFamily:'monospace', boxSizing:'border-box' }}
+                />
+              ) : (
+                <pre style={{ fontSize:'13px', lineHeight:'1.7', whiteSpace:'pre-wrap', color:'#e2e8f0', background:'rgba(255,255,255,0.03)', padding:'16px', borderRadius:'8px', margin:0 }}>{cartaAbierta.contenido}</pre>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display:'flex', gap:'10px', flexShrink:0 }}>
+              {editandoCarta ? (
+                <>
+                  <button onClick={guardarCarta} disabled={guardandoCarta}
+                    style={{ padding:'8px 18px', background:'rgba(0,255,136,0.15)', border:'1px solid rgba(0,255,136,0.4)', borderRadius:'8px', color:'#00ff88', fontSize:'13px', cursor:'pointer', fontWeight:'bold' }}>
+                    {guardandoCarta ? 'Guardando...' : 'Guardar cambios'}
+                  </button>
+                  <button onClick={() => setEditandoCarta(false)}
+                    style={{ padding:'8px 16px', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'8px', color:'#94a3b8', fontSize:'13px', cursor:'pointer' }}>
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => { setContenidoEditado(cartaAbierta.contenido); setEditandoCarta(true) }}
+                    style={{ padding:'8px 16px', background:'rgba(251,191,36,0.1)', border:'1px solid rgba(251,191,36,0.3)', borderRadius:'8px', color:'#fbbf24', fontSize:'13px', cursor:'pointer' }}>
+                    Editar
+                  </button>
+                  <button onClick={() => exportarCarta(cartaAbierta.id)} disabled={exportandoCarta === cartaAbierta.id}
+                    style={{ padding:'8px 16px', background:'rgba(56,189,248,0.1)', border:'1px solid rgba(56,189,248,0.3)', borderRadius:'8px', color:'#38bdf8', fontSize:'13px', cursor:'pointer' }}>
+                    {exportandoCarta === cartaAbierta.id ? '...' : '↓ Download'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

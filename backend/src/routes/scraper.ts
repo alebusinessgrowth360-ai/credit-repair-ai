@@ -70,7 +70,7 @@ async function scrapeReport(email: string, password: string) {
     console.log('[SCRAPER] tGUID:', tGUID)
 
     const reportUrl = tGUID ? `${BASE}/cp6/mcc_creditreports_v2.asp?tGUID=${tGUID}` : `${BASE}/cp6/mcc_creditreports_v2.asp`
-    await page.goto(reportUrl, { waitUntil: 'networkidle2', timeout: 30000 })
+    await page.goto(reportUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     await new Promise(r => setTimeout(r, 15000))
 
     console.log('[SCRAPER] Array.io responses captured:', Object.keys(arrayData).length)
@@ -98,28 +98,69 @@ function mismoToText(arrayData: Record<string, any>): string {
   }
   parts.push('')
 
-  // Send CREDIT_FILE (personal info per bureau) as raw JSON
+  // Personal info per bureau as raw JSON
   if (cr.CREDIT_FILE) {
     parts.push('=== PERSONAL INFO PER BUREAU (JSON) ===')
     parts.push(JSON.stringify(cr.CREDIT_FILE).slice(0, 8000))
     parts.push('')
   }
 
-  // Send CREDIT_LIABILITY (accounts) as raw JSON — this is the most important section
+  // Accounts — formatted as readable text so the AI can identify negatives clearly
   if (cr.CREDIT_LIABILITY) {
-    parts.push('=== ACCOUNTS (CREDIT_LIABILITY JSON) ===')
-    parts.push(JSON.stringify(cr.CREDIT_LIABILITY).slice(0, 50000))
-    parts.push('')
+    const liabilities: any[] = Array.isArray(cr.CREDIT_LIABILITY) ? cr.CREDIT_LIABILITY : [cr.CREDIT_LIABILITY]
+    parts.push(`=== ACCOUNTS (${liabilities.length} entries) ===`)
+    for (const acct of liabilities) {
+      const creditor = acct._CREDITOR?.['@_Name'] || acct['@_Name'] || ''
+      const origCreditor = acct._CREDITOR?.['@_OriginalCreditorName'] || acct['@_OriginalCreditorName'] || ''
+      const repos: any[] = Array.isArray(acct.CREDIT_REPOSITORY) ? acct.CREDIT_REPOSITORY : (acct.CREDIT_REPOSITORY ? [acct.CREDIT_REPOSITORY] : [])
+      const bureau = repos.map((r: any) => r['@_SourceType']).filter(Boolean).join(', ')
+      const acctType = acct['@_AccountType'] || acct['@_CreditBusinessType'] || ''
+      const status = acct['@_AccountStatusType'] || acct['@_PaymentStatusType'] || ''
+      const derogatory = acct['@_DerogatoryDataIndicator'] || ''
+      const ratingDesc = acct['@_RatingDescription'] || acct._PAYMENT_PATTERN?.['@_RatingDescription'] || ''
+      const currentRating = acct['@_MostRecentAdverseRatingCode'] || acct['@_CurrentRatingCode'] || ''
+      const chargeOff = acct['@_ChargeOffAmount'] || ''
+      const balance = acct['@_UnpaidBalanceAmount'] || acct['@_HighBalanceAmount'] || ''
+      const limit = acct['@_CreditLimitAmount'] || acct['@_HighCreditAmount'] || ''
+      const opened = acct['@_AccountOpenedDate'] || ''
+      const closed = acct['@_AccountClosedDate'] || ''
+      const lastPay = acct['@_LastPaymentDate'] || acct['@_LastActivityDate'] || ''
+      const accountNum = acct['@_AccountIdentifier'] || ''
+      const payPattern = acct._PAYMENT_PATTERN?.['@_Data'] || ''
+      const adverseDate = acct['@_MostRecentAdverseRatingDate'] || ''
+
+      const line = [
+        `ACCOUNT: ${creditor}`,
+        origCreditor ? `  Original Creditor: ${origCreditor}` : '',
+        `  Bureau: ${bureau || 'unknown'}`,
+        `  Account Type: ${acctType}`,
+        `  Status: ${status}`,
+        derogatory === 'Y' ? '  DEROGATORY: YES' : '',
+        chargeOff ? `  CHARGE OFF AMOUNT: $${chargeOff}` : '',
+        ratingDesc ? `  Rating: ${ratingDesc}` : '',
+        currentRating ? `  Current Rating Code: ${currentRating}` : '',
+        adverseDate ? `  Most Recent Adverse: ${adverseDate}` : '',
+        balance ? `  Balance: $${balance}` : '',
+        limit ? `  Limit: $${limit}` : '',
+        accountNum ? `  Account #: ${accountNum}` : '',
+        opened ? `  Opened: ${opened}` : '',
+        closed ? `  Closed: ${closed}` : '',
+        lastPay ? `  Last Payment: ${lastPay}` : '',
+        payPattern ? `  Payment History: ${payPattern}` : '',
+      ].filter(Boolean).join('\n')
+      parts.push(line)
+      parts.push('')
+    }
   }
 
-  // Send CREDIT_INQUIRY as raw JSON
+  // Inquiries as raw JSON
   if (cr.CREDIT_INQUIRY) {
     parts.push('=== INQUIRIES (CREDIT_INQUIRY JSON) ===')
     parts.push(JSON.stringify(cr.CREDIT_INQUIRY).slice(0, 10000))
     parts.push('')
   }
 
-  // Send CREDIT_SCORE section
+  // Credit score section
   if (cr.CREDIT_SCORE) {
     parts.push('=== CREDIT_SCORE JSON ===')
     parts.push(JSON.stringify(cr.CREDIT_SCORE).slice(0, 3000))
@@ -248,8 +289,16 @@ DETECCIÓN DE ERRORES:
 - Hard inquiries no autorizados
 - Cualquier inconsistencia entre burós
 
-REGLAS DE CLASIFICACIÓN:
-- negativo=true si el estado contiene: Collection, Charge Off, CO, Late, Past Due, Derogatory, 30/60/90/120 days, Transferred to Collections, o variante negativa.
+REGLAS DE CLASIFICACIÓN (campos MISMO 2.4):
+- negativo=true si CUALQUIERA de estas condiciones es verdadera:
+  * Account Type es "CollectionAccount" o contiene "Collection"
+  * DEROGATORY: YES (campo @_DerogatoryDataIndicator = Y)
+  * CHARGE OFF AMOUNT tiene valor (significa que fue charged off)
+  * Rating contiene: Collection, Charge, ChargeOff, ChargeOffDerogatory, Late, PastDue, Derogatory, Adverse
+  * Status contiene: Collection, ChargeOff, Derogatory, PastDue, Late
+  * Payment History contiene 1, 2, 3, 4, 5, 6, 7, 8, 9 (días de atraso)
+  * Current Rating Code no es "1" (= al día) ni "0"
+- tipo_negativo: "collection" si es cuenta de cobro, "charge_off" si fue cargado, "late_payment" si tiene pagos tardíos, "derogatory" para otros negativos
 - disputable=true si es negativa, tiene inconsistencias, es duplicada, o excede 7 años.
 
 Responde SOLO con JSON válido con esta estructura exacta:
