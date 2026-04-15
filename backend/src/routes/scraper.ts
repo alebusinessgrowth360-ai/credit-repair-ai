@@ -1,5 +1,6 @@
 import { Router, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth'
+import pool from '../db/client'
 
 const router = Router()
 
@@ -115,7 +116,7 @@ function parseArrayData(arrayData: Record<string, any>) {
 
 // POST /api/scraper/credit-hero
 router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response) => {
-  const { email, password } = req.body
+  const { email, password, cliente_id } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Se requieren email y contraseña del cliente' })
 
   try {
@@ -123,6 +124,39 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
     const result = parseArrayData(arrayData)
     console.log('[SCRAPER] Scores:', result.scores)
     console.log('[SCRAPER] Total inquiries:', result.total_inquiries)
+
+    if (cliente_id) {
+      const usuarioId = req.usuario!.id
+      const cliente = await pool.query('SELECT id FROM clientes WHERE id = $1 AND usuario_id = $2', [cliente_id, usuarioId])
+      if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
+
+      const today = new Date().toISOString().split('T')[0]
+      const nombre = `credit-hero-${today}`
+
+      const reporte = await pool.query(
+        `INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte)
+         VALUES ($1, $2, $3, $4, 'otro') RETURNING id`,
+        [cliente_id, nombre, nombre]
+      )
+      const reporteId = reporte.rows[0].id
+
+      await pool.query(
+        `INSERT INTO analisis_reportes (reporte_id, resumen_general, inquiries, errores_detectados, cuentas, recomendaciones, estado_general)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          reporteId,
+          JSON.stringify({ scores: result.scores, total_inquiries: result.total_inquiries, fuente: 'Credit Hero Score' }),
+          JSON.stringify(result.inquiries),
+          JSON.stringify([]),
+          JSON.stringify([]),
+          JSON.stringify([]),
+          'riesgo_medio'
+        ]
+      )
+
+      return res.json({ data: { ...result, reporte_id: reporteId }, error: null })
+    }
+
     res.json({ data: result, error: null })
   } catch (err: any) {
     console.error('[SCRAPER] Error:', err.message)

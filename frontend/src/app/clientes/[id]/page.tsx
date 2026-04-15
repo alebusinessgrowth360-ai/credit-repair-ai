@@ -191,11 +191,14 @@ export default function DetalleClientePage() {
       const res = await fetch(API + '/scraper/credit-hero', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ email: chEmail, password: chPassword })
+        body: JSON.stringify({ email: chEmail, password: chPassword, cliente_id: id })
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setResultadoCH(data.data)
+      if (data.data?.reporte_id) {
+        cargarDatos(token)
+      }
     } catch (err: any) { setErrorCH(err.message) }
     finally { setImportandoCH(false) }
   }
@@ -365,8 +368,14 @@ export default function DetalleClientePage() {
                   )
                 })}
 
+                {resultadoCH.reporte_id && (
+                  <button onClick={() => router.push('/analisis/' + resultadoCH.reporte_id)}
+                    style={{ marginTop:'8px', padding:'10px', background:'linear-gradient(135deg,#00ff88,#0ea5e9)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', width:'100%' }}>
+                    Ver análisis completo
+                  </button>
+                )}
                 <button onClick={() => { setResultadoCH(null); setChEmail(''); setChPassword('') }}
-                  style={{ marginTop:'8px', padding:'8px 16px', background:'none', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'8px', color:'#38bdf8', fontSize:'12px', cursor:'pointer', width:'100%' }}>
+                  style={{ marginTop:'6px', padding:'8px 16px', background:'none', border:'1px solid rgba(56,189,248,0.2)', borderRadius:'8px', color:'#38bdf8', fontSize:'12px', cursor:'pointer', width:'100%' }}>
                   Importar otro
                 </button>
               </div>
