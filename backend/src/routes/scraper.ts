@@ -169,6 +169,20 @@ function mismoToText(arrayData: Record<string, any>): string {
   return lines.join('\n').slice(0, 90000)
 }
 
+function normalizeName(s: string): string {
+  return s.toUpperCase().replace(/\b(INC|LLC|CORP|BANK|FINANCIAL|SERVICES|CREDIT|UNION|CO|NA|FSB|FEDERAL|SAVINGS|AUTO|GROUP)\b/g, '').replace(/[^A-Z0-9]/g, '').trim()
+}
+
+function isLinkedToAccount(inquiryName: string, accountNames: string[]): boolean {
+  const ni = normalizeName(inquiryName)
+  if (!ni || ni.length < 3) return false
+  return accountNames.some(acct => {
+    const na = normalizeName(acct)
+    if (!na || na.length < 3) return false
+    return ni.includes(na) || na.includes(ni) || (ni.length >= 5 && na.length >= 5 && (ni.startsWith(na.slice(0, 5)) || na.startsWith(ni.slice(0, 5))))
+  })
+}
+
 function parseArrayData(arrayData: Record<string, any>) {
   const scores = { TransUnion: 0, Experian: 0, Equifax: 0, general: 0 }
   for (const [url, data] of Object.entries(arrayData)) {
@@ -187,6 +201,18 @@ function parseArrayData(arrayData: Record<string, any>) {
   const reportKey = Object.keys(arrayData).find(k => k.includes('/api/report/v2?'))
   const cr = reportKey ? arrayData[reportKey]?.CREDIT_RESPONSE : null
 
+  // Build account name list to filter linked inquiries
+  const accountNames: string[] = []
+  if (cr?.CREDIT_LIABILITY) {
+    const liabilities: any[] = Array.isArray(cr.CREDIT_LIABILITY) ? cr.CREDIT_LIABILITY : [cr.CREDIT_LIABILITY]
+    for (const acct of liabilities) {
+      const name = acct._CREDITOR?.['@_Name'] || acct['@_Name'] || ''
+      const orig = acct._CREDITOR?.['@_OriginalCreditorName'] || acct['@_OriginalCreditorName'] || ''
+      if (name) accountNames.push(name)
+      if (orig) accountNames.push(orig)
+    }
+  }
+
   if (cr?.CREDIT_INQUIRY) {
     const arr: any[] = Array.isArray(cr.CREDIT_INQUIRY) ? cr.CREDIT_INQUIRY : [cr.CREDIT_INQUIRY]
     for (const inq of arr) {
@@ -195,6 +221,7 @@ function parseArrayData(arrayData: Record<string, any>) {
       const empresa: string = inq['@_Name'] || ''
       const dateStr: string = inq['@_Date'] || ''
       if (!empresa || !dateStr) continue
+      if (isLinkedToAccount(empresa, accountNames)) continue  // skip if linked to an account
       const d = new Date(dateStr)
       const fecha = !isNaN(d.getTime()) ? `${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}` : dateStr
       if (bureau === 'TransUnion') inquiries.TransUnion.push({ empresa, fecha })

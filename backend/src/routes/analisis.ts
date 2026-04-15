@@ -121,7 +121,7 @@ REGLAS DE EXTRACCIÓN (CRÍTICAS):
    - fecha_cierre: fecha de cierre si existe
    - fecha_ultimo_pago: last payment date si existe
    - buro: Experian, Equifax, o TransUnion
-3. Extrae TODOS los hard inquiries separados por buró. Instrucciones detalladas para el formato Credit Hero Score (y similares):
+3. Extrae los hard inquiries separados por buró, PERO SOLO los que NO tienen una cuenta existente asociada en el reporte. Si existe una cuenta (abierta o cerrada) del mismo acreedor, NO incluyas ese inquiry — ya está vinculado a una cuenta autorizada. Solo los inquiries de empresas sin cuenta correspondiente son potencialmente no autorizados y disputables. Instrucciones detalladas para el formato Credit Hero Score (y similares):
 
    ESTRUCTURA DE LA SECCIÓN DE INQUIRIES:
    - El reporte tiene una tabla con 3 columnas: TransUnion | Equifax | Experian
