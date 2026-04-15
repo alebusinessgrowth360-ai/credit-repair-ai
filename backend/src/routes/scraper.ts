@@ -42,18 +42,25 @@ async function scrapeReport(email: string, password: string) {
     await page.type('#username', email, { delay: 30 })
     await page.type('#password', password, { delay: 30 })
     await page.click('.btn.login')
-    await new Promise(r => setTimeout(r, 5000))
+    // Wait for navigation to complete after login click
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 })
+    } catch { /* timeout is ok — page may already be navigating */ }
 
     const afterLoginUrl = page.url()
-    const loginFormStillActive = await page.evaluate(new Function(`
-      var form = document.querySelector('#CFForm_1');
-      if (!form) return false;
-      var pwd = form.querySelector('input[type="password"]');
-      return !!(pwd && pwd.offsetParent !== null);
-    `) as () => boolean)
-    console.log('[SCRAPER] After login URL:', afterLoginUrl, '| form active:', loginFormStillActive)
-    if (afterLoginUrl.includes('customer_login') && loginFormStillActive) {
-      throw new Error('Email o contraseña incorrectos. Verifica las credenciales del cliente.')
+    console.log('[SCRAPER] After login URL:', afterLoginUrl)
+    if (afterLoginUrl.includes('customer_login')) {
+      // Still on login page — check if form is still active (wrong credentials)
+      let formActive = false
+      try {
+        formActive = await page.evaluate(new Function(`
+          var form = document.querySelector('#CFForm_1');
+          if (!form) return false;
+          var pwd = form.querySelector('input[type="password"]');
+          return !!(pwd && pwd.offsetParent !== null);
+        `) as () => boolean)
+      } catch { /* execution context destroyed = navigation in progress = login succeeded */ }
+      if (formActive) throw new Error('Email o contraseña incorrectos. Verifica las credenciales del cliente.')
     }
 
     await new Promise(r => setTimeout(r, 12000))
@@ -263,6 +270,8 @@ router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response)
     // Run AI analysis on the MISMO structured data
     console.log('[SCRAPER] Running AI analysis...')
     const textoReporte = mismoToText(arrayData)
+    console.log('[SCRAPER] mismoToText chars:', textoReporte.length)
+    console.log('[SCRAPER] mismoToText sample:', textoReporte.substring(0, 800))
     const openai = await getOpenAI(usuarioId)
 
     const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
