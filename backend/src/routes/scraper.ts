@@ -275,11 +275,12 @@ Analiza el reporte de crédito completo que aparece al final. Los datos están e
 El reporte muestra las cuentas con el campo Bureau indicando a qué buró pertenece cada entrada. Crea una entrada SEPARADA por cada combinación acreedor+buró.
 
 REGLAS DE EXTRACCIÓN:
-1. Incluye ABSOLUTAMENTE TODAS las cuentas.
-2. Para cada cuenta extrae todos los campos disponibles: acreedor, original_creditor, tipo, numero, balance, limite_credito, estado, fecha_apertura, fecha_cierre, fecha_ultimo_pago, buro.
+1. En el array "cuentas" incluye ÚNICAMENTE las cuentas negativas (collections, charge-offs, late payments, derogatorias). NO incluyas cuentas positivas o al día — eso infla el JSON y no aporta valor.
+2. Para cada cuenta negativa extrae: acreedor, original_creditor, tipo, numero, balance, limite_credito, estado, fecha_apertura, fecha_cierre, fecha_ultimo_pago, buro.
 3. Los inquiries ya están organizados por buró — extráelos exactamente como aparecen con empresa y fecha.
 4. Extrae datos personales de todas las secciones disponibles por buró.
 5. Los scores están en la sección Credit Score — extráelos exactamente.
+6. En resumen_general sí reporta el total de cuentas (positivas + negativas), pero solo pon las negativas en el array "cuentas".
 
 DETECCIÓN DE ERRORES:
 - Cuentas duplicadas (mismo original creditor con diferentes nombres)
@@ -320,7 +321,13 @@ ${textoReporte}`
     const raw = response.choices[0].message.content || ''
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('La IA no devolvió JSON válido.')
-    const analisisData = JSON.parse(jsonMatch[0])
+    let analisisData: any
+    try {
+      analisisData = JSON.parse(jsonMatch[0])
+    } catch (parseErr: any) {
+      console.error('[SCRAPER] JSON truncado, largo:', jsonMatch[0].length, parseErr.message)
+      throw new Error('La respuesta de la IA fue demasiado larga y se cortó. Intenta de nuevo.')
+    }
 
     // Use scraped scores (more reliable than AI-extracted)
     analisisData.scores = result.scores
