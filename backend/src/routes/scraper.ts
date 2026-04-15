@@ -290,6 +290,9 @@ DETECCIÓN DE ERRORES:
 - Hard inquiries no autorizados
 - Cualquier inconsistencia entre burós
 
+IDENTIFICACIÓN DE COLLECTIONS — MUY IMPORTANTE:
+El reporte tiene una sección explícita de "Collections" donde aparecen las cuentas de cobro organizadas por buró (TransUnion, Equifax, Experian). Cada entrada muestra fecha, monto y nombre del acreedor/collector. DEBES extraer TODAS esas cuentas como negativo=true y tipo_negativo="collection". Si el mismo collector aparece en múltiples burós, crea una entrada por cada buró con su respectivo balance y fecha.
+
 REGLAS DE CLASIFICACIÓN (campos MISMO 2.4):
 - negativo=true si CUALQUIERA de estas condiciones es verdadera:
   * Account Type es "CollectionAccount" o contiene "Collection"
