@@ -85,95 +85,48 @@ function mismoToText(arrayData: Record<string, any>): string {
   const cr = reportKey ? arrayData[reportKey]?.CREDIT_RESPONSE : null
   if (!cr) return ''
 
-  const lines: string[] = ['CREDIT REPORT - Credit Hero Score (Array.io MISMO 2.4)\n']
+  const parts: string[] = ['=== CREDIT REPORT — Credit Hero Score / Array.io ===\n']
 
-  // Scores from scoretracker
+  // Scores
   for (const [url, data] of Object.entries(arrayData)) {
     if (!url.includes('scoretracker')) continue
     const history: any[] = data.creditScoreHistory || []
     if (!history.length) continue
     const score = history[0].score
     const bureau = url.includes('bureau=tui') ? 'TransUnion' : url.includes('bureau=efx') ? 'Equifax' : 'Experian'
-    lines.push(`Credit Score ${bureau}: ${score}`)
+    parts.push(`Credit Score ${bureau}: ${score}`)
   }
-  lines.push('')
+  parts.push('')
 
-  // Personal info from BORROWER
-  const borrower = cr.BORROWER
-  if (borrower) {
-    const b = Array.isArray(borrower) ? borrower[0] : borrower
-    lines.push(`Borrower: ${b['@_FirstName'] || ''} ${b['@_MiddleName'] || ''} ${b['@_LastName'] || ''}`.trim())
-    if (b['@_SSN']) lines.push(`SSN: ${b['@_SSN']}`)
-    if (b['@_BirthDate']) lines.push(`DOB: ${b['@_BirthDate']}`)
-    lines.push('')
+  // Send CREDIT_FILE (personal info per bureau) as raw JSON
+  if (cr.CREDIT_FILE) {
+    parts.push('=== PERSONAL INFO PER BUREAU (JSON) ===')
+    parts.push(JSON.stringify(cr.CREDIT_FILE).slice(0, 8000))
+    parts.push('')
   }
 
-  // Per-bureau personal data from CREDIT_FILE
-  const files: any[] = Array.isArray(cr.CREDIT_FILE) ? cr.CREDIT_FILE : [cr.CREDIT_FILE].filter(Boolean)
-  for (const file of files) {
-    const bureau = file['@CreditRepositorySourceType'] || ''
-    const fb = file._BORROWER
-    if (!fb) continue
-    lines.push(`--- ${bureau} ---`)
-    const names = Array.isArray(fb._NAME) ? fb._NAME : [fb._NAME].filter(Boolean)
-    names.forEach((n: any) => lines.push(`  Name: ${n['@_FirstName'] || ''} ${n['@_LastName'] || ''}`.trim()))
-    const residences = Array.isArray(fb._RESIDENCE) ? fb._RESIDENCE : [fb._RESIDENCE].filter(Boolean)
-    residences.forEach((r: any) => {
-      const a = r._ADDRESS || r
-      lines.push(`  Address: ${a['@_StreetAddress'] || ''}, ${a['@_City'] || ''}, ${a['@_State'] || ''} ${a['@_PostalCode'] || ''}`)
-    })
-    const employers = Array.isArray(fb._EMPLOYER) ? fb._EMPLOYER : [fb._EMPLOYER].filter(Boolean)
-    employers.forEach((e: any) => lines.push(`  Employer: ${e['@_Name'] || ''}`))
-  }
-  lines.push('')
-
-  // Accounts
-  const liabilities: any[] = Array.isArray(cr.CREDIT_LIABILITY) ? cr.CREDIT_LIABILITY : []
-  if (liabilities.length) {
-    lines.push('ACCOUNTS:')
-    for (const acct of liabilities) {
-      const creditor = acct._CREDITOR?.['@_Name'] || acct['@_Name'] || ''
-      const origCreditor = acct._CREDITOR?.['@_OriginalCreditorName'] || acct['@_OriginalCreditorName'] || ''
-      const bureau = acct.CREDIT_REPOSITORY?.['@_SourceType'] || ''
-      const type = acct['@_AccountType'] || acct['@AccountType'] || ''
-      const acctNum = acct['@CreditLiabilityAccountIdentifier'] || acct['@AccountIdentifier'] || ''
-      const balance = acct['@CreditLiabilityUnpaidBalanceAmount'] || acct['@UnpaidBalanceAmount'] || ''
-      const limit = acct['@CreditLiabilityHighCreditAmount'] || acct['@CreditLimitAmount'] || ''
-      const status = acct['@CreditLiabilityAccountStatusType'] || acct['@AccountStatusType'] || ''
-      const opened = acct['@CreditLiabilityAccountOpenedDate'] || acct['@AccountOpenedDate'] || ''
-      const closed = acct['@CreditLiabilityAccountClosedDate'] || acct['@AccountClosedDate'] || ''
-      const lastPay = acct['@CreditLiabilityLastPaymentDate'] || acct['@LastPaymentDate'] || ''
-      const pastDue = acct['@CreditLiabilityPastDueAmount'] || acct['@PastDueAmount'] || ''
-      lines.push(`Creditor: ${creditor}${origCreditor ? ' | Original: ' + origCreditor : ''} | Bureau: ${bureau} | Type: ${type} | Account#: ${acctNum} | Balance: ${balance} | Limit: ${limit} | Status: ${status} | Opened: ${opened}${closed ? ' | Closed: ' + closed : ''}${lastPay ? ' | LastPay: ' + lastPay : ''}${pastDue ? ' | PastDue: ' + pastDue : ''}`)
-    }
-    lines.push('')
+  // Send CREDIT_LIABILITY (accounts) as raw JSON — this is the most important section
+  if (cr.CREDIT_LIABILITY) {
+    parts.push('=== ACCOUNTS (CREDIT_LIABILITY JSON) ===')
+    parts.push(JSON.stringify(cr.CREDIT_LIABILITY).slice(0, 50000))
+    parts.push('')
   }
 
-  // Inquiries
-  const inquiries: any[] = Array.isArray(cr.CREDIT_INQUIRY) ? cr.CREDIT_INQUIRY : []
-  if (inquiries.length) {
-    lines.push('INQUIRIES:')
-    // Group by bureau for clarity
-    const byBureau: Record<string, string[]> = { TransUnion: [], Equifax: [], Experian: [] }
-    const tuiCount = inquiries.filter(i => i.CREDIT_REPOSITORY?.['@_SourceType'] === 'TransUnion').length
-    const efxCount = inquiries.filter(i => i.CREDIT_REPOSITORY?.['@_SourceType'] === 'Equifax').length
-    const expCount = inquiries.filter(i => i.CREDIT_REPOSITORY?.['@_SourceType'] === 'Experian').length
-    lines.push(`Total count | ${tuiCount} | ${efxCount} | ${expCount}`)
-    lines.push('TransUnion | Equifax | Experian')
-    for (const inq of inquiries) {
-      const bureau = inq.CREDIT_REPOSITORY?.['@_SourceType'] || ''
-      const name = inq['@_Name'] || ''
-      const date = inq['@_Date'] ? new Date(inq['@_Date']).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : ''
-      const type = inq['@_PurposeType'] || ''
-      byBureau[bureau]?.push(`${name} ${date} ${type}`)
-    }
-    const maxRows = Math.max(byBureau.TransUnion.length, byBureau.Equifax.length, byBureau.Experian.length)
-    for (let i = 0; i < maxRows; i++) {
-      lines.push(`${byBureau.TransUnion[i] || ''} | ${byBureau.Equifax[i] || ''} | ${byBureau.Experian[i] || ''}`)
-    }
+  // Send CREDIT_INQUIRY as raw JSON
+  if (cr.CREDIT_INQUIRY) {
+    parts.push('=== INQUIRIES (CREDIT_INQUIRY JSON) ===')
+    parts.push(JSON.stringify(cr.CREDIT_INQUIRY).slice(0, 10000))
+    parts.push('')
   }
 
-  return lines.join('\n').slice(0, 90000)
+  // Send CREDIT_SCORE section
+  if (cr.CREDIT_SCORE) {
+    parts.push('=== CREDIT_SCORE JSON ===')
+    parts.push(JSON.stringify(cr.CREDIT_SCORE).slice(0, 3000))
+    parts.push('')
+  }
+
+  return parts.join('\n').slice(0, 90000)
 }
 
 function normalizeName(s: string): string {
