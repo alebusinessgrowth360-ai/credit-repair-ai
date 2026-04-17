@@ -218,7 +218,26 @@ export default function AnalisisPage() {
   const errores: any[] = analisis.errores_detectados || []
   const inconsistencias: any[] = analisis.inconsistencias_entre_buros || []
   const recomendaciones: any[] = analisis.recomendaciones || []
-  const cuentas: any[] = analisis.cuentas || []
+  const COLLECTION_PATTERNS = [
+    /portfolio\s*recov/i, /lvnv/i, /midland\s*(credit|fund)/i, /cavalry/i,
+    /resurgent/i, /jefferson\s*capital/i, /convergent/i, /diversified\s*consult/i,
+    /enhanced\s*recovery/i, /national\s*credit\s*sys/i, /credit\s*corp/i,
+    /monterey\s*collect/i, /radius\s*global/i, /encore\s*capital/i,
+    /asset\s*(accept|recovery)/i, /first\s*collect/i, /coast\s*professional/i,
+    /recovery\s*assoc/i, /receivables\s*(perform|mgmt)/i, /security\s*credit\s*serv/i,
+    /seccredit/i, /\bcollection/i,
+  ]
+  const cuentas: any[] = (analisis.cuentas || []).map((c: any) => {
+    if (c.tipo_negativo === 'collection') return c
+    const acreedor = (c.acreedor || '').toLowerCase()
+    const isCollectionAgency = COLLECTION_PATTERNS.some(p => p.test(acreedor))
+    const origCred = (c.original_creditor || '').trim()
+    const hasOriginalCreditor = origCred.length > 0 && origCred.toLowerCase() !== acreedor.trim()
+    if (isCollectionAgency || hasOriginalCreditor) {
+      return { ...c, tipo_negativo: 'collection', negativo: true, disputable: true }
+    }
+    return c
+  })
   // Support both formats: new {TransUnion:[...], Equifax:[...], Experian:[...]} and old flat array
   const inquiriesRaw = analisis.inquiries || {}
   const inquiries: any[] = Array.isArray(inquiriesRaw)
