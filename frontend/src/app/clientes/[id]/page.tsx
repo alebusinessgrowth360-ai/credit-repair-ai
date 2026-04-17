@@ -108,6 +108,15 @@ export default function DetalleClientePage() {
     } catch (err) { setError(err.message) }
   }
 
+  async function borrarTodosReportes() {
+    if (!confirm(`¿Borrar los ${reportes.length} reportes? Esto también borrará sus cartas y análisis.`)) return
+    const token = getToken()
+    try {
+      await Promise.all(reportes.map(r => fetch(API + '/reportes/' + r.id, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })))
+      cargarDatos(token)
+    } catch (err) { setError(err.message) }
+  }
+
   async function borrarCarta(cartaId) {
     if (!confirm('¿Borrar esta carta?')) return
     setBorrrandoCarta(cartaId)
@@ -516,7 +525,15 @@ export default function DetalleClientePage() {
           </button>
 
           {/* Reportes */}
-          <h2 style={{ fontSize:'14px', fontWeight:'bold', marginBottom:'12px', color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Reportes ({reportes.length})</h2>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:'12px' }}>
+            <h2 style={{ fontSize:'14px', fontWeight:'bold', margin:0, color:'#00ff88', textTransform:'uppercase', letterSpacing:'1px' }}>Reportes ({reportes.length})</h2>
+            {reportes.length > 1 && (
+              <button onClick={borrarTodosReportes}
+                style={{ padding:'4px 10px', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'6px', color:'#f87171', fontSize:'11px', cursor:'pointer' }}>
+                Borrar todos
+              </button>
+            )}
+          </div>
           {reportes.length === 0 ? (
             <p style={{ color:'#475569', fontSize:'13px' }}>No hay reportes todavia.</p>
           ) : reportes.map(r => (
