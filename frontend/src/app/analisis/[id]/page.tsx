@@ -90,7 +90,7 @@ export default function AnalisisPage() {
     if (cR) { const r = JSON.parse(cR); setClienteId(r.cliente_id); setReporte(r) }
     // Fetch fresh data
     fetch(API + '/analizar/' + id, { headers: { Authorization: 'Bearer ' + token } })
-      .then(r => r.json()).then(d => { if (d.data) { setAnalisis(d.data); sessionStorage.setItem('analisis_' + id, JSON.stringify(d.data)) } })
+      .then(r => r.json()).then(d => { if (d.data) { setAnalisis(d.data); sessionStorage.setItem('analisis_' + id, JSON.stringify(d.data)); console.log('[DEBUG cuentas]', JSON.stringify(d.data.cuentas?.slice(0,10), null, 2)) } })
     fetch(API + '/reportes/by-id/' + id, { headers: { Authorization: 'Bearer ' + token } })
       .then(r => r.json()).then(d => { if (d.data) { setClienteId(d.data.cliente_id); setReporte(d.data); sessionStorage.setItem('reporte_' + id, JSON.stringify(d.data)) } }).catch(() => {})
   }, [id])
