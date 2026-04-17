@@ -210,11 +210,14 @@ export default function DetalleClientePage() {
     e.preventDefault()
     setImportandoCH(true); setErrorCH(''); setResultadoCH(null)
     const token = getToken()
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 120000) // 2 min max
     try {
       const res = await fetch(API + '/scraper/credit-hero', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ email: chEmail, password: chPassword, cliente_id: id })
+        body: JSON.stringify({ email: chEmail, password: chPassword, cliente_id: id }),
+        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -222,8 +225,16 @@ export default function DetalleClientePage() {
       if (data.data?.reporte_id) {
         cargarDatos(token)
       }
-    } catch (err: any) { setErrorCH(err.message) }
-    finally { setImportandoCH(false) }
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setErrorCH('La conexión tardó demasiado. El servidor sigue procesando — espera 30 segundos y recarga la página del cliente.')
+      } else {
+        setErrorCH(err.message)
+      }
+    } finally {
+      clearTimeout(timeout)
+      setImportandoCH(false)
+    }
   }
 
   async function compararReportes(e) {
@@ -355,7 +366,7 @@ export default function DetalleClientePage() {
                 {errorCH && <p style={{ color:'#f87171', fontSize:'12px', margin:0 }}>{errorCH}</p>}
                 <button type="submit" disabled={importandoCH}
                   style={{ padding:'10px', background: importandoCH ? 'rgba(56,189,248,0.15)' : 'linear-gradient(135deg,#0ea5e9,#38bdf8)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', marginTop:'4px' }}>
-                  {importandoCH ? 'Conectando...' : 'Importar reporte'}
+                  {importandoCH ? 'Importando... (puede tardar ~60 seg)' : 'Importar reporte'}
                 </button>
               </form>
             ) : (
