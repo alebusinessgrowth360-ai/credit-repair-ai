@@ -158,9 +158,14 @@ DETECCIÓN DE CUENTAS DUPLICADAS (MUY IMPORTANTE):
 - Para detectarlas: compara el "Original Creditor" de cada collection con los acreedores de otras cuentas. Si coinciden, es duplicado.
 - Incluye CADA duplicado en el array "cuentas_duplicadas" Y también en "errores_detectados" con tipo "Cuenta Duplicada".
 
-REGLAS DE CLASIFICACIÓN:
+REGLAS DE CLASIFICACIÓN (CRÍTICAS — sigue esto exactamente):
 - negativo=true si el estado contiene: Collection, Charge Off, CO, Late, Past Due, Derogatory, 30/60/90/120 days, Transferred to Collections, o cualquier variante negativa.
-- tipo_negativo: "collection", "charge_off", "late", "derogatory", o "" para positivas.
+- tipo_negativo DEBE ser uno de estos valores exactos:
+  * "collection" — USA ESTE VALOR si: (1) el tipo de cuenta dice "Collection", "Collections", "Collection Account", (2) el nombre del acreedor es una agencia de cobranza (LVNV Funding, Midland Credit, Portfolio Recovery, Diversified Consultants, Enhanced Recovery, Cavalry Portfolio, Resurgent Capital, Jefferson Capital, Convergent, CURO, Radius Global, National Credit Systems, Credit Corp Solutions, Monterey Collections, etc.), (3) el estado dice "Transferred to Collections" o "In Collections", (4) existe un "Original Creditor" diferente al acreedor actual (señal clave de que es una colección). NO uses "derogatory" para estas cuentas — usa "collection".
+  * "charge_off" — solo si el estado dice explícitamente "Charge Off", "Charged Off", "CO"
+  * "late" — solo si es un pago tardío sin ser charge-off ni collection
+  * "derogatory" — SOLO para marcas negativas que NO son collection ni charge-off (bankruptcy, judgment, lien)
+  * "" — para cuentas positivas
 - disputable=true si es negativa, tiene inconsistencias, es duplicada, o excede 7 años.
 
 ERRORES A DETECTAR:
