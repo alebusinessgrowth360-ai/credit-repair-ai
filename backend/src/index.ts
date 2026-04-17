@@ -28,32 +28,20 @@ const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
   .map(s => s.trim())
 
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow PDF/file resources across origins
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
   crossOriginEmbedderPolicy: false,
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc:  ["'self'"],
-      styleSrc:   ["'self'", "'unsafe-inline'"],
-      imgSrc:     ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'", ...allowedOrigins],
-      fontSrc:    ["'self'"],
-      objectSrc:  ["'none'"],
-      frameSrc:   ["'none'"],
-    },
-  },
+  contentSecurityPolicy: false, // CSP on API backend causes more harm than good
   hsts: { maxAge: 63072000, includeSubDomains: true, preload: true },
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }))
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (server-to-server, health checks) in non-production
-    if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true)
-    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    // Allow requests with no origin (health checks, server-to-server, Postman)
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
     callback(new Error(`CORS: origin not allowed — ${origin}`))
   },
-  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
