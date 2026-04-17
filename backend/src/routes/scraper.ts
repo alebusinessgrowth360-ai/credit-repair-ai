@@ -8,6 +8,23 @@ const router = Router()
 const BASE = 'https://www.creditheroscore.com'
 const CHROME = process.env.PUPPETEER_EXECUTABLE_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 
+// In-memory job store — jobs complete in ~60s so memory is fine
+interface ScraperJob {
+  status: 'pending' | 'processing' | 'done' | 'error'
+  result?: any
+  error?: string
+  createdAt: number
+}
+const jobs = new Map<string, ScraperJob>()
+
+// Clean up jobs older than 10 minutes
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60 * 1000
+  for (const [id, job] of jobs.entries()) {
+    if (job.createdAt < cutoff) jobs.delete(id)
+  }
+}, 5 * 60 * 1000)
+
 async function getOpenAI(usuarioId: string): Promise<OpenAI> {
   const config = await pool.query('SELECT api_key_encriptada FROM configuracion_ia WHERE usuario_id = $1 AND estado_conexion = $2', [usuarioId, 'activo'])
   if (config.rows.length === 0) throw new Error('API Key de IA no configurada. Ve a Configuracion de IA primero.')
@@ -235,40 +252,45 @@ function parseArrayData(arrayData: Record<string, any>) {
   return { scores, inquiries, total_inquiries: totalInquiries }
 }
 
-// POST /api/scraper/credit-hero
+// POST /api/scraper/credit-hero — starts async job, returns job_id immediately
 router.post('/credit-hero', requireAuth, async (req: AuthRequest, res: Response) => {
   const { email, password, cliente_id } = req.body
   if (!email || !password) return res.status(400).json({ error: 'Se requieren email y contraseña del cliente' })
 
-  try {
-    const { arrayData } = await scrapeReport(email, password)
-    const result = parseArrayData(arrayData)
-    console.log('[SCRAPER] Scores:', result.scores, '| Inquiries:', result.total_inquiries)
+  const jobId = Math.random().toString(36).slice(2) + Date.now().toString(36)
+  jobs.set(jobId, { status: 'pending', createdAt: Date.now() })
 
-    if (!cliente_id) return res.json({ data: result, error: null })
+  // Fire-and-forget — runs in background
+  ;(async () => {
+    jobs.set(jobId, { status: 'processing', createdAt: Date.now() })
+    try {
+      const { arrayData } = await scrapeReport(email, password)
+      const result = parseArrayData(arrayData)
+      console.log('[SCRAPER] Scores:', result.scores, '| Inquiries:', result.total_inquiries)
 
-    const usuarioId = req.usuario!.id
-    const cliente = await pool.query('SELECT id FROM clientes WHERE id = $1 AND usuario_id = $2', [cliente_id, usuarioId])
-    if (cliente.rows.length === 0) return res.status(404).json({ error: 'Cliente no encontrado' })
+      if (!cliente_id) {
+        jobs.set(jobId, { status: 'done', result, createdAt: Date.now() })
+        return
+      }
 
-    const today = new Date().toISOString().split('T')[0]
-    const nombre = `credit-hero-${today}`
+      const usuarioId = req.usuario!.id
+      const cliente = await pool.query('SELECT id FROM clientes WHERE id = $1 AND usuario_id = $2', [cliente_id, usuarioId])
+      if (cliente.rows.length === 0) throw new Error('Cliente no encontrado')
 
-    const reporte = await pool.query(
-      `INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte)
-       VALUES ($1, $2, $3, $4, 'otro') RETURNING id`,
-      [cliente_id, nombre, nombre, today]
-    )
-    const reporteId = reporte.rows[0].id
+      const today = new Date().toISOString().split('T')[0]
+      const nombre = `credit-hero-${today}`
+      const reporte = await pool.query(
+        `INSERT INTO reportes_credito (cliente_id, nombre_archivo, ruta_archivo, fecha_reporte, tipo_reporte)
+         VALUES ($1, $2, $3, $4, 'otro') RETURNING id`,
+        [cliente_id, nombre, nombre, today]
+      )
+      const reporteId = reporte.rows[0].id
 
-    // Run AI analysis on the MISMO structured data
-    console.log('[SCRAPER] Running AI analysis...')
-    const textoReporte = mismoToText(arrayData)
-    console.log('[SCRAPER] mismoToText chars:', textoReporte.length)
-    console.log('[SCRAPER] mismoToText sample:', textoReporte.substring(0, 800))
-    const openai = await getOpenAI(usuarioId)
+      console.log('[SCRAPER] Running AI analysis...')
+      const textoReporte = mismoToText(arrayData)
+      const openai = await getOpenAI(usuarioId)
 
-    const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
+      const prompt = `Actúa como un analista experto en reportes de crédito de Estados Unidos, especializado en revisión de errores, inconsistencias, cumplimiento normativo y estrategias de disputa bajo las leyes federales (FCRA, FDCPA, FACTA).
 
 Analiza el reporte de crédito completo que aparece al final. Los datos están en formato estructurado extraído directamente de los burós de crédito vía API — son 100% exactos. Copia los datos EXACTAMENTE como aparecen.
 
@@ -305,7 +327,7 @@ REGLAS DE CLASIFICACIÓN (campos MISMO 2.4):
 - tipo_negativo: "collection" si es cuenta de cobro, "charge_off" si fue cargado, "late_payment" si tiene pagos tardíos, "derogatory" para otros negativos
 - disputable=true si es negativa, tiene inconsistencias, es duplicada, o excede 7 años.
 
-IMPORTANTE para inconsistencias_entre_buros: el campo "elemento" debe incluir SIEMPRE el nombre del acreedor Y el número de cuenta en formato "NOMBRE ACREEDOR – Acct #XXXX" (ej: "CAPITAL ONE – Acct #4147XXXXXXXX"). Nunca pongas solo el número de cuenta sin el nombre.
+IMPORTANTE para inconsistencias_entre_buros: el campo "elemento" debe incluir SIEMPRE el nombre del acreedor Y el número de cuenta en formato "NOMBRE ACREEDOR – Acct #XXXX". Nunca pongas solo el número de cuenta sin el nombre.
 
 Responde SOLO con JSON válido con esta estructura exacta:
 {"scores":{"Experian":0,"Equifax":0,"TransUnion":0,"general":0},"inquiries":{"TransUnion":[{"empresa":"NOMBRE","fecha":"MM/YYYY"}],"Equifax":[{"empresa":"NOMBRE","fecha":"MM/YYYY"}],"Experian":[{"empresa":"NOMBRE","fecha":"MM/YYYY"}]},"resumen_general":{"total_cuentas":0,"cuentas_positivas":0,"cuentas_negativas":0,"collections":0,"charge_offs":0,"hard_inquiries":0,"cuentas_duplicadas_detectadas":0,"inconsistencias_personales_detectadas":0,"estado_general":"riesgo_medio"},"datos_personales":{"nombre_completo":"","ssn_parcial":"","fecha_nacimiento":"","direcciones_actuales":[],"direcciones_anteriores":[],"empleadores":[],"por_buro":{"Experian":{"nombres":[],"direcciones":[],"empleadores":[]},"Equifax":{"nombres":[],"direcciones":[],"empleadores":[]},"TransUnion":{"nombres":[],"direcciones":[],"empleadores":[]}}},"inconsistencias_personales":[{"tipo":"nombre|direccion|empleador","descripcion":"","buro":"","valor_reportado":"","disputable":true}],"cuentas":[{"acreedor":"","original_creditor":"","tipo":"","numero":"","balance":"","limite_credito":"","estado":"","fecha_apertura":"","fecha_cierre":"","fecha_ultimo_pago":"","buro":"","negativo":false,"tipo_negativo":"","disputable":false,"razon_disputa":""}],"cuentas_duplicadas":[{"acreedor_1":"","acreedor_2":"","original_creditor":"","numero_1":"","numero_2":"","buro_1":"","buro_2":"","balance_1":"","balance_2":"","descripcion":""}],"errores_detectados":[{"tipo":"","descripcion":"","buro":"","cuenta_relacionada":"","prioridad":"alta","ley_aplicable":"FCRA"}],"inconsistencias_entre_buros":[{"elemento":"NOMBRE ACREEDOR – Acct #XXXX","buros_involucrados":"","diferencia":"","prioridad":"alta"}],"recomendaciones":[{"tipo":"","descripcion":"","ley_aplicable":"FCRA","prioridad":1}]}
@@ -313,56 +335,64 @@ Responde SOLO con JSON válido con esta estructura exacta:
 CONTENIDO DEL REPORTE:
 ${textoReporte}`
 
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
-      messages: [
-        { role: 'system', content: 'Eres un experto en reparacion de credito en Estados Unidos. Analiza reportes completos y detecta todos los errores disputables. Tu respuesta debe ser UNICAMENTE el objeto JSON solicitado, sin ningun texto antes ni despues, sin markdown, sin bloques de codigo.' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.1,
-      max_tokens: 16000
-    })
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'Eres un experto en reparacion de credito en Estados Unidos. Tu respuesta debe ser UNICAMENTE el objeto JSON solicitado, sin ningun texto antes ni despues, sin markdown, sin bloques de codigo.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: 16000
+      })
 
-    const raw = response.choices[0].message.content || ''
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    if (!jsonMatch) throw new Error('La IA no devolvió JSON válido.')
-    let analisisData: any
-    try {
-      analisisData = JSON.parse(jsonMatch[0])
-    } catch (parseErr: any) {
-      console.error('[SCRAPER] JSON truncado, largo:', jsonMatch[0].length, parseErr.message)
-      throw new Error('La respuesta de la IA fue demasiado larga y se cortó. Intenta de nuevo.')
+      const raw = response.choices[0].message.content || ''
+      const jsonMatch = raw.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) throw new Error('La IA no devolvió JSON válido.')
+      let analisisData: any
+      try {
+        analisisData = JSON.parse(jsonMatch[0])
+      } catch (parseErr: any) {
+        throw new Error('La respuesta de la IA fue demasiado larga y se cortó. Intenta de nuevo.')
+      }
+
+      analisisData.scores = result.scores
+      analisisData.inquiries = result.inquiries
+
+      await pool.query(
+        `INSERT INTO analisis_reportes
+           (reporte_id, resumen_general, datos_personales, cuentas, inquiries,
+            errores_detectados, inconsistencias_entre_buros, recomendaciones, estado_general)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          reporteId,
+          JSON.stringify({ ...analisisData.resumen_general, scores: analisisData.scores, fuente: 'Credit Hero Score' }),
+          JSON.stringify(analisisData.datos_personales || {}),
+          JSON.stringify(analisisData.cuentas || []),
+          JSON.stringify(analisisData.inquiries || {}),
+          JSON.stringify(analisisData.errores_detectados || []),
+          JSON.stringify(analisisData.inconsistencias_entre_buros || []),
+          JSON.stringify(analisisData.recomendaciones || []),
+          analisisData.resumen_general?.estado_general || 'riesgo_medio'
+        ]
+      )
+
+      console.log('[SCRAPER] Done. job:', jobId, '| Accounts:', (analisisData.cuentas || []).length)
+      jobs.set(jobId, { status: 'done', result: { ...result, reporte_id: reporteId }, createdAt: Date.now() })
+    } catch (err: any) {
+      console.error('[SCRAPER] Error job', jobId, ':', err.message)
+      jobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() })
     }
+  })()
 
-    // Use scraped scores (more reliable than AI-extracted)
-    analisisData.scores = result.scores
-    analisisData.inquiries = result.inquiries
+  // Respond immediately with the job ID
+  res.json({ data: { job_id: jobId }, error: null })
+})
 
-    await pool.query(
-      `INSERT INTO analisis_reportes
-         (reporte_id, resumen_general, datos_personales, cuentas, inquiries,
-          errores_detectados, inconsistencias_entre_buros, recomendaciones, estado_general)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-      [
-        reporteId,
-        JSON.stringify({ ...analisisData.resumen_general, scores: analisisData.scores, fuente: 'Credit Hero Score' }),
-        JSON.stringify(analisisData.datos_personales || {}),
-        JSON.stringify(analisisData.cuentas || []),
-        JSON.stringify(analisisData.inquiries || {}),
-        JSON.stringify(analisisData.errores_detectados || []),
-        JSON.stringify(analisisData.inconsistencias_entre_buros || []),
-        JSON.stringify(analisisData.recomendaciones || []),
-        analisisData.resumen_general?.estado_general || 'riesgo_medio'
-      ]
-    )
-
-    console.log('[SCRAPER] Analysis saved. Accounts:', (analisisData.cuentas || []).length, '| Errors:', (analisisData.errores_detectados || []).length)
-    return res.json({ data: { ...result, reporte_id: reporteId }, error: null })
-
-  } catch (err: any) {
-    console.error('[SCRAPER] Error:', err.message)
-    res.status(400).json({ error: err.message })
-  }
+// GET /api/scraper/job/:job_id — poll for job status
+router.get('/job/:job_id', requireAuth, (req: AuthRequest, res: Response) => {
+  const job = jobs.get(req.params.job_id)
+  if (!job) return res.status(404).json({ error: 'Job no encontrado o expirado' })
+  res.json({ data: { status: job.status, result: job.result ?? null, error: job.error ?? null }, error: null })
 })
 
 export default router

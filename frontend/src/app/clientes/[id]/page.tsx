@@ -210,31 +210,46 @@ export default function DetalleClientePage() {
     e.preventDefault()
     setImportandoCH(true); setErrorCH(''); setResultadoCH(null)
     const token = getToken()
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 120000) // 2 min max
     try {
+      // Start the job
       const res = await fetch(API + '/scraper/credit-hero', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
         body: JSON.stringify({ email: chEmail, password: chPassword, cliente_id: id }),
-        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setResultadoCH(data.data)
-      if (data.data?.reporte_id) {
-        cargarDatos(token)
-      }
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
-        setErrorCH('La conexión tardó demasiado. El servidor sigue procesando — espera 30 segundos y recarga la página del cliente.')
-      } else {
-        setErrorCH(err.message)
-      }
-    } finally {
-      clearTimeout(timeout)
-      setImportandoCH(false)
-    }
+      const jobId = data.data?.job_id
+      if (!jobId) throw new Error('No se pudo iniciar el proceso.')
+
+      // Poll every 5 seconds until done or error
+      await new Promise<void>((resolve, reject) => {
+        let attempts = 0
+        const interval = setInterval(async () => {
+          attempts++
+          if (attempts > 36) { // 3 min max
+            clearInterval(interval)
+            reject(new Error('El proceso tardó demasiado. Intenta de nuevo.'))
+            return
+          }
+          try {
+            const poll = await fetch(API + '/scraper/job/' + jobId, { headers: { Authorization: 'Bearer ' + token } })
+            const pollData = await poll.json()
+            const job = pollData.data
+            if (job.status === 'done') {
+              clearInterval(interval)
+              setResultadoCH(job.result)
+              if (job.result?.reporte_id) cargarDatos(token)
+              resolve()
+            } else if (job.status === 'error') {
+              clearInterval(interval)
+              reject(new Error(job.error || 'Error al importar el reporte.'))
+            }
+          } catch { /* network hiccup, keep polling */ }
+        }, 5000)
+      })
+    } catch (err: any) { setErrorCH(err.message) }
+    finally { setImportandoCH(false) }
   }
 
   async function compararReportes(e) {
@@ -366,7 +381,7 @@ export default function DetalleClientePage() {
                 {errorCH && <p style={{ color:'#f87171', fontSize:'12px', margin:0 }}>{errorCH}</p>}
                 <button type="submit" disabled={importandoCH}
                   style={{ padding:'10px', background: importandoCH ? 'rgba(56,189,248,0.15)' : 'linear-gradient(135deg,#0ea5e9,#38bdf8)', border:'none', borderRadius:'8px', color:'#030712', fontSize:'13px', fontWeight:'bold', cursor:'pointer', marginTop:'4px' }}>
-                  {importandoCH ? 'Importando... (puede tardar ~60 seg)' : 'Importar reporte'}
+                  {importandoCH ? 'Procesando... (puede tardar ~60 seg)' : 'Importar reporte'}
                 </button>
               </form>
             ) : (
