@@ -103,7 +103,8 @@ export default function DetalleClientePage() {
     const token = getToken()
     try {
       const res = await fetch(API + '/reportes/' + reporteId, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } })
-      if (!res.ok) throw new Error('Error al borrar')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Error al borrar')
       cargarDatos(token)
     } catch (err) { setError(err.message) }
   }
