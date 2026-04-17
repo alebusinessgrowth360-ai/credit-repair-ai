@@ -354,7 +354,7 @@ export default function AnalisisPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(100px,1fr))', gap: '8px' }}>
           {(() => {
-            const colCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'collection' || e.includes('collection') }).length
+            const colCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || '').toLowerCase(); const tipo = (c.tipo || '').toLowerCase(); return t.includes('collection') || e.includes('collection') || tipo.includes('collection') }).length
             const coCount = cuentas.filter((c: any) => { const e = (c.estado || '').toLowerCase(); const t = (c.tipo_negativo || ''); return t === 'charge_off' || e.includes('charge off') || e.includes('charge-off') }).length
             const negCount = cuentas.filter((c: any) => c.negativo || (c.tipo_negativo && c.tipo_negativo !== '')).length
             const uniqueCount = new Set(cuentas.map((c: any) => (c.acreedor || '').toLowerCase().trim())).size
@@ -500,8 +500,9 @@ export default function AnalisisPage() {
         ]
         const colecciones = cuentas.filter((c: any) => {
           const e = (c.estado || '').toLowerCase()
-          const t = (c.tipo_negativo || c.tipo || '').toLowerCase()
-          return t === 'collection' || e.includes('collection')
+          const t = (c.tipo_negativo || '').toLowerCase()
+          const tipo = (c.tipo || '').toLowerCase()
+          return t.includes('collection') || e.includes('collection') || tipo.includes('collection')
         })
         if (colecciones.length === 0) return null
 
