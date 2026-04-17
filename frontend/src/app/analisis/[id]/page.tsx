@@ -491,6 +491,119 @@ export default function AnalisisPage() {
         </div>
       )}
 
+      {/* Collections — dedicated section */}
+      {(() => {
+        const BUREAU_CFG = [
+          { name: 'TransUnion', abbr: 'TU', color: '#34d399', bg: 'rgba(52,211,153,0.15)', border: 'rgba(52,211,153,0.45)' },
+          { name: 'Equifax',    abbr: 'EQ', color: '#f87171', bg: 'rgba(248,113,113,0.15)', border: 'rgba(248,113,113,0.45)' },
+          { name: 'Experian',   abbr: 'EX', color: '#818cf8', bg: 'rgba(129,140,248,0.15)', border: 'rgba(129,140,248,0.45)' },
+        ]
+        const colecciones = cuentas.filter((c: any) => {
+          const e = (c.estado || '').toLowerCase()
+          const t = (c.tipo_negativo || c.tipo || '').toLowerCase()
+          return t === 'collection' || e.includes('collection')
+        })
+        if (colecciones.length === 0) return null
+
+        // Group by normalized creditor
+        const grouped: Record<string, any[]> = {}
+        colecciones.forEach((c: any) => {
+          const key = (c.acreedor || 'unknown').toLowerCase().trim().replace(/\s+/g, ' ')
+          if (!grouped[key]) grouped[key] = []
+          grouped[key].push(c)
+        })
+        const grupos = Object.values(grouped)
+        const totalBalance = colecciones.reduce((sum: number, c: any) => {
+          const n = parseFloat((c.balance || '').replace(/[$,]/g, ''))
+          return sum + (isNaN(n) ? 0 : n)
+        }, 0)
+
+        return (
+          <div className="print-section" style={{ background: 'rgba(239,68,68,0.05)', border: '2px solid rgba(239,68,68,0.4)', borderRadius: '14px', padding: '20px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg,#ef4444,#f97316,transparent)' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <h2 style={{ fontSize: '12px', margin: '0 0 3px', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 'bold' }}>
+                  Collections ({grupos.length} unique · {colecciones.length} total)
+                </h2>
+                <p style={{ fontSize: '11px', color: '#f87171', margin: 0 }}>
+                  Total balance: <strong style={{ color: '#ef4444' }}>${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> — All disputable under FDCPA & FCRA
+                </p>
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 'bold', padding: '4px 12px', borderRadius: '20px', background: 'rgba(239,68,68,0.2)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.5)' }}>
+                HIGH PRIORITY
+              </span>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                <thead>
+                  <tr>
+                    {['Collection Agency', 'Original Creditor', 'Balance', 'Open Date', 'Bureaus', 'Action'].map((h, i) => (
+                      <th key={h} style={{ padding: '8px 10px', background: 'rgba(239,68,68,0.15)', color: '#f87171', textAlign: 'left', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', ...(i === 5 ? { display: 'none' } : {}) }}
+                        className={i === 5 ? 'no-print' : ''}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {grupos.map((accounts: any[], i: number) => {
+                    const c = accounts[0]
+                    const burosPresentes = accounts.map((a: any) => (a.buro || '').trim()).filter(Boolean)
+                    const firstBuro = burosPresentes[0] || 'Experian'
+                    const balanceNum = parseFloat((c.balance || '').replace(/[$,]/g, ''))
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid rgba(239,68,68,0.12)', background: i % 2 === 0 ? 'rgba(239,68,68,0.04)' : 'transparent' }}>
+                        <td style={{ padding: '10px', color: '#fca5a5', fontWeight: '700' }}>
+                          <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '1px 5px', borderRadius: '3px', marginRight: '6px' }}>COL</span>
+                          {c.acreedor || '—'}
+                          {c.numero && <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px' }}>#{c.numero}</div>}
+                        </td>
+                        <td style={{ padding: '10px', color: '#94a3b8' }}>
+                          {c.original_creditor || <span style={{ color: '#475569' }}>—</span>}
+                        </td>
+                        <td style={{ padding: '10px', color: '#ef4444', fontWeight: '700', fontSize: '13px' }}>
+                          {!isNaN(balanceNum) ? '$' + balanceNum.toLocaleString('en-US', { minimumFractionDigits: 2 }) : c.balance || '—'}
+                        </td>
+                        <td style={{ padding: '10px', color: '#64748b', fontSize: '11px' }}>
+                          {c.fecha_apertura || '—'}
+                        </td>
+                        <td style={{ padding: '10px' }}>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            {BUREAU_CFG.map(b => {
+                              const presente = burosPresentes.some((bp: string) => bp.toLowerCase().includes(b.name.toLowerCase()))
+                              return (
+                                <span key={b.name} title={presente ? b.name : `Not in ${b.name}`} style={{
+                                  fontSize: '9px', fontWeight: 'bold', padding: '2px 6px', borderRadius: '3px',
+                                  background: presente ? b.bg : 'rgba(255,255,255,0.03)',
+                                  color: presente ? b.color : '#1e293b',
+                                  border: `1px solid ${presente ? b.border : 'rgba(255,255,255,0.05)'}`,
+                                  letterSpacing: '0.5px', userSelect: 'none' as const,
+                                }}>
+                                  {b.abbr}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        </td>
+                        <td className="no-print" style={{ padding: '10px' }}>
+                          <button
+                            onClick={() => generarCarta('carta_coleccion', firstBuro, 'FDCPA', c)}
+                            disabled={!!generando}
+                            style={{ padding: '4px 10px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '5px', color: '#ef4444', fontSize: '10px', cursor: 'pointer', fontWeight: 'bold' }}>
+                            {generando ? '...' : 'Draft Letter'}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      })()}
+
       {cuentas.length > 0 && (() => {
         const BUREAU_CFG = [
           { name: 'TransUnion', abbr: 'TU', color: '#34d399', bg: 'rgba(52,211,153,0.15)', border: 'rgba(52,211,153,0.45)' },

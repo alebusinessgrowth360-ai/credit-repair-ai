@@ -22,15 +22,41 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 4000
 
-app.use(helmet({ crossOriginResourcePolicy: false }))
-app.use((_req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*')
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
-  res.header('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-  if (_req.method === 'OPTIONS') return res.sendStatus(204)
-  next()
-})
-app.use(cors({ origin: '*' }))
+// Allowed origins — set FRONTEND_URL in .env (comma-separated for multiple)
+const allowedOrigins = (process.env.FRONTEND_URL ?? 'http://localhost:3000')
+  .split(',')
+  .map(s => s.trim())
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }, // allow PDF/file resources across origins
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc:  ["'self'"],
+      styleSrc:   ["'self'", "'unsafe-inline'"],
+      imgSrc:     ["'self'", 'data:', 'blob:'],
+      connectSrc: ["'self'", ...allowedOrigins],
+      fontSrc:    ["'self'"],
+      objectSrc:  ["'none'"],
+      frameSrc:   ["'none'"],
+    },
+  },
+  hsts: { maxAge: 63072000, includeSubDomains: true, preload: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+}))
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, health checks) in non-production
+    if (!origin && process.env.NODE_ENV !== 'production') return callback(null, true)
+    if (!origin || allowedOrigins.includes(origin)) return callback(null, true)
+    callback(new Error(`CORS: origin not allowed — ${origin}`))
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}))
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: true }))
 
