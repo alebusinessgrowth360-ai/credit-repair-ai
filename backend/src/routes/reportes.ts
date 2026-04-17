@@ -69,6 +69,9 @@ router.get('/pdf/:reporte_id', requireAuth, async (req: AuthRequest, res: Respon
 router.delete('/:reporte_id', requireAuth, async (req: AuthRequest, res: Response) => {
   const { reporte_id } = req.params
   try {
+    await pool.query('DELETE FROM cartas WHERE reporte_id = $1', [reporte_id])
+    await pool.query('DELETE FROM disputas WHERE reporte_id = $1', [reporte_id])
+    await pool.query('DELETE FROM comparaciones_reportes WHERE reporte_base_id = $1 OR reporte_comparado_id = $1', [reporte_id, reporte_id])
     await pool.query('DELETE FROM analisis_reportes WHERE reporte_id = $1', [reporte_id])
     await pool.query('DELETE FROM reportes_credito WHERE id = $1', [reporte_id])
     res.json({ data: { deleted: true }, error: null })
