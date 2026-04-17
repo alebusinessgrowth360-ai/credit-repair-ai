@@ -18,7 +18,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
-      `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL ?? ''}`,
+      `connect-src 'self' ${process.env.NEXT_PUBLIC_API_URL ? (() => { try { return new URL(process.env.NEXT_PUBLIC_API_URL).origin } catch { return process.env.NEXT_PUBLIC_API_URL } })() : ''}`,
       "font-src 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
