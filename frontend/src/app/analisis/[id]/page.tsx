@@ -83,12 +83,14 @@ export default function AnalisisPage() {
   useEffect(() => {
     const token = getToken()
     if (!token || !id) return
-    // Clear stale cache and always fetch fresh
-    sessionStorage.removeItem('analisis_' + id)
-    sessionStorage.removeItem('reporte_' + id)
+    // Restore from session cache instantly
+    const cA = sessionStorage.getItem('analisis_' + id)
+    const cR = sessionStorage.getItem('reporte_' + id)
+    if (cA) setAnalisis(JSON.parse(cA))
+    if (cR) { const r = JSON.parse(cR); setClienteId(r.cliente_id); setReporte(r) }
     // Fetch fresh data
     fetch(API + '/analizar/' + id, { headers: { Authorization: 'Bearer ' + token } })
-      .then(r => r.json()).then(d => { if (d.data) { setAnalisis(d.data); sessionStorage.setItem('analisis_' + id, JSON.stringify(d.data)); console.log('[DEBUG cuentas]', JSON.stringify(d.data.cuentas?.slice(0,10), null, 2)) } })
+      .then(r => r.json()).then(d => { if (d.data) { setAnalisis(d.data); sessionStorage.setItem('analisis_' + id, JSON.stringify(d.data)) } })
     fetch(API + '/reportes/by-id/' + id, { headers: { Authorization: 'Bearer ' + token } })
       .then(r => r.json()).then(d => { if (d.data) { setClienteId(d.data.cliente_id); setReporte(d.data); sessionStorage.setItem('reporte_' + id, JSON.stringify(d.data)) } }).catch(() => {})
   }, [id])
@@ -507,16 +509,6 @@ export default function AnalisisPage() {
           </div>
         </div>
       )}
-
-      {/* TEMP DEBUG */}
-      <div style={{ background: '#1e1b4b', border: '1px solid #6366f1', borderRadius: '8px', padding: '12px', marginBottom: '12px', fontSize: '11px', color: '#a5b4fc' }}>
-        <strong style={{ color: '#818cf8' }}>DEBUG:</strong> cuentas={cuentas.length}<br/>
-        {cuentas.map((c:any,i:number)=>(
-          <div key={i} style={{borderTop:'1px solid #312e81',paddingTop:'4px',marginTop:'4px'}}>
-            <span style={{color:'#c7d2fe'}}>{c.acreedor}</span> | tipo_neg=<span style={{color:'#f87171'}}>{c.tipo_negativo||'—'}</span> | tipo=<span style={{color:'#fbbf24'}}>{c.tipo}</span> | estado=<span style={{color:'#34d399'}}>{c.estado}</span> | orig={c.original_creditor||'—'}
-          </div>
-        ))}
-      </div>
 
       {/* Collections — dedicated section */}
       {(() => {
