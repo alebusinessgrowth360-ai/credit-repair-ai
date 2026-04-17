@@ -491,7 +491,12 @@ export default function AnalisisPage() {
 
       {/* TEMP DEBUG */}
       <div style={{ background: '#1e1b4b', border: '1px solid #6366f1', borderRadius: '8px', padding: '12px', marginBottom: '12px', fontSize: '11px', color: '#a5b4fc' }}>
-        <strong style={{ color: '#818cf8' }}>DEBUG:</strong> cuentas={cuentas.length} | tipos_negativos=[{[...new Set(cuentas.map((c:any)=>c.tipo_negativo||''))].join(', ')}] | tipos=[{[...new Set(cuentas.map((c:any)=>c.tipo||''))].slice(0,8).join(', ')}] | estados=[{[...new Set(cuentas.map((c:any)=>c.estado||''))].slice(0,8).join(', ')}]
+        <strong style={{ color: '#818cf8' }}>DEBUG:</strong> cuentas={cuentas.length}<br/>
+        {cuentas.map((c:any,i:number)=>(
+          <div key={i} style={{borderTop:'1px solid #312e81',paddingTop:'4px',marginTop:'4px'}}>
+            <span style={{color:'#c7d2fe'}}>{c.acreedor}</span> | tipo_neg=<span style={{color:'#f87171'}}>{c.tipo_negativo||'—'}</span> | tipo=<span style={{color:'#fbbf24'}}>{c.tipo}</span> | estado=<span style={{color:'#34d399'}}>{c.estado}</span> | orig={c.original_creditor||'—'}
+          </div>
+        ))}
       </div>
 
       {/* Collections — dedicated section */}
